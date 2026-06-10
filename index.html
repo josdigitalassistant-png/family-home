@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.3 -->
+<!-- Family Home App v1.7.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -388,7 +388,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.3</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.4</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -435,7 +435,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <button onclick="changeWeek(-1)">&#8249;</button>
       <div class="week-nav-label" id="week-label">This week</div>
       <button onclick="changeWeek(1)">&#8250;</button>
-      <button onclick="goToToday()" id="today-btn" style="font-size:11px;font-weight:600;padding:0 10px;height:34px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-secondary);cursor:pointer;display:none">Today</button>
+    </div>
+    <div id="today-btn-row" style="display:none;margin-bottom:10px">
+      <button onclick="goToToday()" id="today-btn" style="width:100%;padding:9px;border-radius:10px;border:1.5px solid var(--sophia);background:var(--sophia-light);color:var(--sophia);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">↩ Back to today</button>
     </div>
     <div class="day-tabs" id="day-tabs"></div>
     <div class="day-events" id="day-events"></div>
@@ -607,7 +609,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.4</div>
   </div>
 </div>
 
@@ -640,6 +642,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       </div>
       <div class="emoji-picker" id="emoji-picker"></div>
 
+      <div id="ev-date-row" style="display:none" class="field-group">
+        <div class="field-label">Date</div>
+        <input class="field-input" id="ev-date" type="date">
+      </div>
       <div class="field-row">
         <div class="field-group">
           <div class="field-label">Start time</div>
@@ -734,7 +740,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.3';
+const APP_VERSION = '1.7.4';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1255,8 +1261,8 @@ function goToToday(){
 function renderWeek(){
   const ws=getWeekStart(weekOffset);
   document.getElementById('week-label').textContent=weekOffset===0?'This week':weekOffset===1?'Next week':weekOffset===-1?'Last week':ws.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  const todayBtn=document.getElementById('today-btn');
-  if(todayBtn) todayBtn.style.display=weekOffset===0?'none':'block';
+  const todayBtnRow=document.getElementById('today-btn-row');
+  if(todayBtnRow) todayBtnRow.style.display=weekOffset===0?'none':'block';
   const tabs=document.getElementById('day-tabs');
   tabs.innerHTML='';
   for(let i=0;i<7;i++){
@@ -1296,12 +1302,23 @@ function renderWeek(){
   // Sort by start time
   // Get the actual date for the selected day this week
   const _ws = getWeekStart(weekOffset);
-  const _sd = new Date(_ws); _sd.setDate(_ws.getDate() + (selectedDay===7?6:selectedDay-1));
+  // selectedDay: 1=Mon,2=Tue...7=Sun; offset from Monday (index 0)
+  const _dayOffset = selectedDay === 7 ? 6 : selectedDay - 1;
+  const _sd = new Date(_ws);
+  _sd.setDate(_ws.getDate() + _dayOffset);
+  _sd.setHours(0,0,0,0);
   const _sdStr = _sd.toISOString().split('T')[0];
 
   const sortedEvents = [...events].filter(ev => {
-    // Filter out series entries past their end date
-    if (ev.seriesId && ev.seriesEnd && _sdStr > ev.seriesEnd) return false;
+    // Birthday: only show on its specific date
+    if (ev.type === 'birthday' && ev.date) {
+      // Compare month-day only (yearly recurrence)
+      const evMD = ev.date.substring(5); // MM-DD
+      const sdMD = _sdStr.substring(5);
+      return evMD === sdMD;
+    }
+    // Filter series past end date
+    if (ev.seriesEnd && _sdStr > ev.seriesEnd) return false;
     return true;
   }).sort((a,b)=>{
     const ta = (a.time||'').split('–')[0].replace(':','') || '9999';
@@ -1328,7 +1345,7 @@ function renderWeek(){
         <div class="day-event-title">${icon?`<span style="margin-right:5px">${icon}</span>`:''}${ev.title}</div>
         <div class="day-event-time">${ev.time||''}</div></div>
         <div class="day-event-detail">${ev.detail||''}</div>${subjectLine}
-        ${ev.seriesId&&!ev.seriesOverride?`<div class="recurring-badge">🔁 ${ev.frequency||'Weekly'}</div>`:''}${ev.seriesOverride?'<div class="recurring-badge" style="color:#D97706;background:#FEF3C7">📅 Edited occurrence</div>':''}
+        ${ev.seriesId&&!ev.seriesOverride&&ev.frequency?`<div class="recurring-badge">🔁 ${ev.frequency.charAt(0).toUpperCase()+ev.frequency.slice(1)}</div>`:''}${ev.seriesOverride?'<div class="recurring-badge" style="color:#D97706;background:#FEF3C7">📅 Edited</div>':''}
         ${ev.drop||ev.pick?`<div class="day-event-owners">
           ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
           ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
@@ -1365,6 +1382,12 @@ function openEventEditor(dayIdx,evIdx){
     document.getElementById('ev-drop').value=ev.drop||'';
     document.getElementById('ev-pick').value=ev.pick||'';
     setEventIcon(ev.icon || autoIconFor(ev.title) || '🎯');
+    // Show date field for birthdays
+    const dateRow = document.getElementById('ev-date-row');
+    const isBirthday = ev.type === 'birthday';
+    if (dateRow) dateRow.style.display = isBirthday ? 'block' : 'none';
+    const dateInput = document.getElementById('ev-date');
+    if (dateInput) dateInput.value = ev.date || '';
     const isRecurring = !!ev.seriesId && !ev.seriesOverride;
     const radioNone = document.getElementById('ev-recur-none');
     const radioYes = document.getElementById('ev-recur-yes');
@@ -1399,6 +1422,8 @@ function openEventEditor(dayIdx,evIdx){
     ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('ev-start').value='';document.getElementById('ev-end').value='';
     const _rn=document.getElementById('ev-recur-none');if(_rn)_rn.checked=true;
+    const _dr=document.getElementById('ev-date-row');if(_dr)_dr.style.display='none';
+    const _di=document.getElementById('ev-date');if(_di)_di.value='';
     const _ry=document.getElementById('ev-recur-yes');if(_ry)_ry.checked=false;
     const _ro=document.getElementById('ev-recurring-opts');if(_ro)_ro.style.display='none';
     setEventIcon('🎯');
@@ -1428,7 +1453,20 @@ function addKitToEvent(){
 
 function closeEventEditor(){document.getElementById('event-editor-overlay').classList.remove('open');}
 
-function selectType(el){document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');}
+function selectType(el){
+  document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  const isBirthday = el.dataset.type === 'birthday';
+  const dateRow = document.getElementById('ev-date-row');
+  if (dateRow) dateRow.style.display = isBirthday ? 'block' : 'none';
+  // Hide recurring options for birthday
+  if (isBirthday) {
+    const rn = document.getElementById('ev-recur-none');
+    if (rn) { rn.checked = true; }
+    const ro = document.getElementById('ev-recurring-opts');
+    if (ro) ro.style.display = 'none';
+  }
+}
 
 function autoIconFor(title) {
   if (!title) return null;
@@ -1450,6 +1488,7 @@ function saveEvent(){
   const pick=document.getElementById('ev-pick').value.trim();
   const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
   const icon=getEventIcon();
+  const evDate=document.getElementById('ev-date')?.value||null;
   const isRecurring=document.querySelector('input[name="ev-recur-radio"]:checked')?.value==='recurring';
   const frequency = isRecurring ? getFrequency() : null;
   const seriesEnd = isRecurring ? (document.getElementById('ev-series-end').value||null) : null;
@@ -1461,12 +1500,12 @@ function saveEvent(){
   if(editingIdx===null){
     // New event
     const seriesId = isRecurring ? ('s_'+Date.now()) : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd};
+    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate};
     weekData[editingDay].push(ev);
   } else {
     const existing = weekData[editingDay][editingIdx];
     const seriesId = isRecurring ? (existing.seriesId || 's_'+Date.now()) : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd};
+    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate};
 
     if(existing.seriesId && seriesEditMode === 'occurrence'){
       // Only edit this one — add override flag
