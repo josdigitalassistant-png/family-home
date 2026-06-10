@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.6.2 -->
+<!-- Family Home App v1.6.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -286,7 +286,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.2</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.3</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -507,7 +507,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.2</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.3</div>
   </div>
 </div>
 
@@ -591,7 +591,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -677,6 +677,7 @@ function startSignIn() {
   }
   document.querySelectorAll('.ob-step').forEach(s=>s.classList.remove('active'));
   document.getElementById('ob-step-2').classList.add('active');
+  // Use a fresh token client with explicit consent for first sign-in
   const client = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID, scope: SCOPES,
     callback: (response) => {
@@ -689,6 +690,8 @@ function startSignIn() {
       const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
       s.token = accessToken; s.setupDone = true; s.version = APP_VERSION;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      // Prime the token client singleton with this session
+      _tokenClient = client;
       document.getElementById('onboarding').style.display = 'none';
       showApp();
       loadAllSheets();
@@ -697,42 +700,79 @@ function startSignIn() {
   client.requestAccessToken();
 }
 
-function silentSignIn(onSuccess) {
-  if (typeof google === 'undefined' || !google.accounts) {
-    setTimeout(() => silentSignIn(onSuccess), 500); return;
-  }
-  try {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID, scope: SCOPES, prompt: '',
+// Token client singleton — create once, reuse
+let _tokenClient = null;
+let _tokenRefreshQueue = []; // callbacks waiting for new token
+let _tokenRefreshing = false;
+
+function getTokenClient() {
+  if (!_tokenClient && typeof google !== 'undefined' && google.accounts) {
+    _tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      prompt: '',
       callback: (response) => {
+        _tokenRefreshing = false;
         if (!response.error) {
           accessToken = response.access_token;
-          // Save token to localStorage so other devices don't need to re-auth
           const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
           s.token = accessToken;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
           setSyncLive();
-          if (onSuccess) onSuccess();
-          else loadAllSheets();
+          // Drain the queue
+          const q = _tokenRefreshQueue.splice(0);
+          q.forEach(cb => cb(true));
         } else {
-          // Silent refresh failed — don't kick to login, just mark as offline
+          console.warn('Token refresh failed:', response.error);
           setSyncError();
-          console.warn('Silent sign-in failed:', response.error);
+          const q = _tokenRefreshQueue.splice(0);
+          q.forEach(cb => cb(false));
         }
       }
     });
-    client.requestAccessToken();
-  } catch(e) { setSyncError(); }
+  }
+  return _tokenClient;
 }
 
-// Called when any API request gets a 401 — refresh token and retry
-async function refreshTokenAndRetry(retryFn) {
+// Silently refresh token — queue multiple callers so only one popup attempt
+function refreshToken() {
   return new Promise((resolve) => {
-    silentSignIn(async () => {
-      try { resolve(await retryFn()); }
-      catch(e) { setSyncError(); resolve(null); }
-    });
+    _tokenRefreshQueue.push(resolve);
+    if (!_tokenRefreshing) {
+      _tokenRefreshing = true;
+      const client = getTokenClient();
+      if (client) {
+        client.requestAccessToken();
+      } else {
+        // Google not loaded yet — retry in 1s
+        setTimeout(() => {
+          _tokenRefreshing = false;
+          refreshToken().then(resolve);
+        }, 1000);
+      }
+    }
   });
+}
+
+function silentSignIn(onSuccess) {
+  refreshToken().then(ok => {
+    if (ok) {
+      if (onSuccess) onSuccess();
+      else loadAllSheets();
+    } else {
+      setSyncError();
+    }
+  });
+}
+
+// Called when any API request gets a 401
+async function refreshTokenAndRetry(retryFn) {
+  const ok = await refreshToken();
+  if (ok) {
+    try { return await retryFn(); }
+    catch(e) { setSyncError(); return null; }
+  }
+  return null;
 }
 
 function signOut() {
@@ -845,7 +885,10 @@ async function ensureAppDataSheet() {
   try {
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
       {headers:{Authorization:`Bearer ${accessToken}`}});
+    if (res.status === 401) { await refreshToken(); return ensureAppDataSheet(); }
+    if (!res.ok) return; // Can't check — skip, will fail gracefully later
     const meta = await res.json();
+    if (!meta.sheets) return; // Unexpected response
     const exists = meta.sheets.some(s => s.properties.title === 'AppData');
     if (!exists) {
       await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
