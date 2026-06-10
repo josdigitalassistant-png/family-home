@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.6.5 -->
+<!-- Family Home App v1.6.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -301,7 +301,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.5</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.6</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -318,7 +318,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
   <div class="topbar">
     <div>
       <div class="topbar-title">🏠 FiApp</div>
-      <div class="topbar-date" id="topbar-date"></div>
       <div class="topbar-sync" id="topbar-sync"></div>
     </div>
     <div class="topbar-right">
@@ -334,6 +333,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="today-greeting">
       <h2 id="greeting">Good morning</h2>
       <p id="greeting-sub">Here's what's on today</p>
+      <p id="greeting-date" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px"></p>
     </div>
     <div id="kit-banners"></div>
     <div class="section-label">Today</div>
@@ -525,7 +525,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.5</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.6</div>
   </div>
 </div>
 
@@ -609,7 +609,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.6.5';
+const APP_VERSION = '1.6.6';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -893,7 +893,8 @@ function initApp() {
 
   const hour = now.getHours();
   document.getElementById('greeting').textContent = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
-  document.getElementById('topbar-date').textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  const dateEl = document.getElementById('greeting-date');
+  if(dateEl) dateEl.textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
   renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
 }
 
@@ -1618,8 +1619,9 @@ function openTaskEditor(idx) {
 function closeTaskEditor() { document.getElementById('task-editor-overlay').classList.remove('open'); }
 
 function selectPriority(el) {
+  const wasActive = el.classList.contains('active');
   document.querySelectorAll('#task-priority-row .type-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+  if (!wasActive) el.classList.add('active'); // toggle off if already active
 }
 
 function saveTask() {
@@ -1798,13 +1800,13 @@ function toggleSophiaView() {
         <input class="field-input" id="task-name-input" type="text" placeholder="e.g. Book dentist">
       </div>
       <div class="field-row">
-        <div class="field-group">
+        <div class="field-group" style="min-width:0">
           <div class="field-label">Owner</div>
-          <input class="field-input" id="task-owner-input" type="text" placeholder="Jo / Partner / Both">
+          <input class="field-input" id="task-owner-input" type="text" placeholder="Jo / Partner / Both" style="min-width:0;width:100%">
         </div>
-        <div class="field-group">
+        <div class="field-group" style="min-width:0">
           <div class="field-label">Due date</div>
-          <input class="field-input" id="task-due-input" type="date">
+          <input class="field-input" id="task-due-input" type="date" style="min-width:0;width:100%">
         </div>
       </div>
       <div class="field-group">
