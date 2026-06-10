@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.3 -->
+<!-- Family Home App v1.3.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -46,8 +46,9 @@ function showTimetableEditor() {
 
   // Validity period
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const validFrom = saved.ttValidFrom || '';
-  const validTo = saved.ttValidTo || '';
+  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const validFrom = _s.ttValidFrom || '';
+  const validTo = _s.ttValidTo || '';
 
   let html = `<div style="margin-bottom:14px">
     <div class="tt-validity-label">Timetable valid period (optional)</div>
@@ -568,6 +569,32 @@ function init() {
 window.addEventListener('load', init);
 
 // ═══════════════════════════════════
+// DATA (must be before all functions)
+// ═══════════════════════════════════
+const timetable = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').timetable || {
+  mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
+  tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:[]},
+  wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
+  thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
+  fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
+};
+
+const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
+
+const weekData = {
+  1:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Jo'}],
+  2:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon · Lunch included',type:'betreuung',drop:'',pick:'Partner'}],
+  3:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Jo'},{title:'Swimming',time:'16:00–17:00',detail:'Hallenbad City · Swim kit needed',type:'school',drop:'Jo',pick:'Jo'}],
+  4:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon',type:'betreuung',drop:'',pick:'Jo'},{title:'Dentist — Sophia',time:'10:00–11:00',detail:'Dr. Meier, Zürich',type:'family',drop:'',pick:''}],
+  5:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Partner'}],
+  6:[{title:'Family time',time:'Morning',detail:'',type:'family',drop:'',pick:''}],
+  7:[{title:"Pack Sophia's bag",time:'Evening',detail:'Ready for Monday',type:'jo-event',drop:'',pick:''}]
+};
+
+const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+
+// ═══════════════════════════════════
 // ONBOARDING
 // ═══════════════════════════════════
 function goToStep(n) {
@@ -583,7 +610,7 @@ function startSignIn() {
     callback: (response) => {
       if (response.error) { goToStep(1); return; }
       accessToken = response.access_token;
-      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); // save token
+      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')
       s.token = accessToken;
       s.setupDone = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
@@ -617,7 +644,7 @@ function silentSignIn() {
 }
 
 // ── Timetable upload ──
-let timetableData = saved.timetable || {};
+let timetableData = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').timetable || {};
 
 function handleTimetableUpload(e) {
   const file = e.target.files[0];
@@ -810,28 +837,6 @@ async function loadContacts() {
 // ═══════════════════════════════════
 // DATA
 // ═══════════════════════════════════
-const timetable = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').timetable || {
-  mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
-  tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:[]},
-  wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-  thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
-  fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
-};
-
-const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
-
-const weekData = {
-  1:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Jo'}],
-  2:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon · Lunch included',type:'betreuung',drop:'',pick:'Partner'}],
-  3:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Jo'},{title:'Swimming',time:'16:00–17:00',detail:'Hallenbad City · Swim kit needed',type:'school',drop:'Jo',pick:'Jo'}],
-  4:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon',type:'betreuung',drop:'',pick:'Jo'},{title:'Dentist — Sophia',time:'10:00–11:00',detail:'Dr. Meier, Zürich',type:'family',drop:'',pick:''}],
-  5:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Partner'}],
-  6:[{title:'Family time',time:'Morning',detail:'',type:'family',drop:'',pick:''}],
-  7:[{title:"Pack Sophia's bag",time:'Evening',detail:'Ready for Monday',type:'jo-event',drop:'',pick:''}]
-};
-
-const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
 // ═══════════════════════════════════
 // TODAY VIEW
 // ═══════════════════════════════════
@@ -1095,14 +1100,6 @@ function updateTTStatus() {
   if (el) el.textContent = hasData ? 'Last updated · tap to edit' : 'Tap to add subjects per day';
 }
 
-const KIT_OPTIONS = ['🎽 PE kit', '🎨 Art apron', '🎸 Instrument', '🏊 Swim kit', '📐 Geometry set'];
-const WEEK_DAYS = [
-  {key:'mon', label:'Monday'},
-  {key:'tue', label:'Tuesday'},
-  {key:'wed', label:'Wednesday'},
-  {key:'thu', label:'Thursday'},
-  {key:'fri', label:'Friday'},
-];
 
 function showTimetableEditor() {
   const wrap = document.getElementById('tt-editor-wrap');
@@ -1112,8 +1109,9 @@ function showTimetableEditor() {
 
   // Validity period
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const validFrom = saved.ttValidFrom || '';
-  const validTo = saved.ttValidTo || '';
+  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const validFrom = _s.ttValidFrom || '';
+  const validTo = _s.ttValidTo || '';
 
   let html = `<div style="margin-bottom:14px">
     <div class="tt-validity-label">Timetable valid period (optional)</div>
@@ -1318,7 +1316,7 @@ function signOut() {
     </div>
 
     <!-- App version -->
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3.1</div>
   </div>
 </div>
 
