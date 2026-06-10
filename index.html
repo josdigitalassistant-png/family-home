@@ -795,62 +795,135 @@ function switchTab(tab) {
 }
 
 // ═══════════════════════════════════
-// SHEETS API
+// SHEETS API — two-way sync via AppData tab
 // ═══════════════════════════════════
+const APP_DATA_RANGE = "'AppData'!A1";
+
 async function sheetsGet(range) {
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`,
     {headers:{Authorization:`Bearer ${accessToken}`}});
   if (!res.ok) throw new Error(res.status);
   return (await res.json()).values || [];
 }
-async function sheetsAppend(range, values) {
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
-    {method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
-}
 async function sheetsUpdate(range, values) {
   await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
     {method:'PUT',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
 }
+async function sheetsAppend(range, values) {
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
+    {method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
+}
+
+async function ensureAppDataSheet() {
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
+      {headers:{Authorization:`Bearer ${accessToken}`}});
+    const meta = await res.json();
+    const exists = meta.sheets.some(s => s.properties.title === 'AppData');
+    if (!exists) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
+        method:'POST',
+        headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
+        body:JSON.stringify({requests:[{addSheet:{properties:{title:'AppData'}}}]})
+      });
+      console.log('AppData sheet created');
+    }
+  } catch(e) { console.warn('ensureAppDataSheet:', e); }
+}
+
+async function loadAppData() {
+  try {
+    const rows = await sheetsGet(APP_DATA_RANGE);
+    if (rows && rows[0] && rows[0][0]) {
+      return JSON.parse(rows[0][0]);
+    }
+  } catch(e) { console.warn('loadAppData:', e); }
+  return null;
+}
+
+async function saveAppData() {
+  if (!accessToken) return;
+  try {
+    const state = {
+      version: APP_VERSION,
+      weekData: weekData,
+      shopping: shopping,
+      tasks: tasks,
+      contacts: contactsData,
+      payments: payments,
+      timetable: timetable,
+      updatedAt: new Date().toISOString()
+    };
+    await sheetsUpdate(APP_DATA_RANGE, [[JSON.stringify(state)]]);
+    setSyncLive();
+    console.log('AppData saved at', state.updatedAt);
+  } catch(e) { setSyncError(); console.error('saveAppData:', e); }
+}
+
+function applyAppState(remote) {
+  if (!remote) return;
+  if (remote.weekData) { for(let k in remote.weekData) weekData[k]=remote.weekData[k]; }
+  if (remote.shopping) { shopping.length=0; remote.shopping.forEach(s=>shopping.push(s)); nextId=shopping.length+1; }
+  if (remote.tasks) { tasks.length=0; remote.tasks.forEach(t=>tasks.push(t)); }
+  if (remote.contacts) { for(let k in remote.contacts) contactsData[k]=remote.contacts[k]; }
+  if (remote.payments) { payments.length=0; remote.payments.forEach(p=>payments.push(p)); }
+  if (remote.timetable) { for(let k in remote.timetable) timetable[k]=remote.timetable[k]; }
+  // Cache locally
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  Object.assign(s, {weekData,shopping:[...shopping],tasks:[...tasks],
+    contacts:JSON.parse(JSON.stringify(contactsData)),payments:[...payments],
+    timetable:JSON.parse(JSON.stringify(timetable))});
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
 
 async function loadAllSheets() {
   try {
-    await Promise.all([loadRecurring(), loadShopping(), loadTasks(), loadContacts()]);
+    await ensureAppDataSheet();
+    const remote = await loadAppData();
+    if (remote) {
+      console.log('Loaded AppData, updatedAt:', remote.updatedAt);
+      applyAppState(remote);
+    } else {
+      console.log('No AppData found, bootstrapping from sheets...');
+      await bootstrapFromSheets();
+      await saveAppData();
+    }
     setSyncLive();
-    renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney(); renderMoney();
-  } catch(e) { setSyncError(); console.error(e); }
+    renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
+  } catch(e) { setSyncError(); console.error('loadAllSheets:', e); }
 }
 
-async function loadRecurring() {
-  const rows = await sheetsGet("'🔁 Recurring'!A4:S100");
-  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  if (s.weekData) return; // Don't overwrite local edits
-  for(let d=1;d<=7;d++) weekData[d]=[];
-  rows.filter(r=>r[0]&&r[0].trim()).forEach(r=>{
-    const ev={title:r[0]||'',type:r[2]==='Betreuung'?'betreuung':r[2]==='School'?'school':'jo-event',
-      startTime:r[10]||'',endTime:r[11]||'',location:r[15]||'',drop:r[16]||'',pick:r[17]||'',notes:r[18]||''};
-    [{js:1,idx:1,flag:'mon'},{js:2,idx:2,flag:'tue'},{js:3,idx:3,flag:'wed'},{js:4,idx:4,flag:'thu'},{js:5,idx:5,flag:'fri'},{js:6,idx:6,flag:'sat'},{js:0,idx:7,flag:'sun'}]
-    .forEach(({idx,flag})=>{
-      if(r[{mon:3,tue:4,wed:5,thu:6,fri:7,sat:8,sun:9}[flag]]==='✓')
-        weekData[idx].push({title:ev.title,time:ev.startTime+(ev.endTime?'–'+ev.endTime:''),
-          detail:ev.location+(ev.notes?' · '+ev.notes:''),type:ev.type,drop:ev.drop,pick:ev.pick});
+async function bootstrapFromSheets() {
+  try {
+    const rows = await sheetsGet("'🔁 Recurring'!A4:S100");
+    for(let d=1;d<=7;d++) weekData[d]=[];
+    rows.filter(r=>r[0]&&r[0].trim()).forEach(r=>{
+      const ev={title:r[0]||'',type:r[2]==='Betreuung'?'betreuung':r[2]==='School'?'school':'jo-event',
+        startTime:r[10]||'',endTime:r[11]||'',location:r[15]||'',drop:r[16]||'',pick:r[17]||'',notes:r[18]||''};
+      [{idx:1,flag:'mon'},{idx:2,flag:'tue'},{idx:3,flag:'wed'},{idx:4,flag:'thu'},{idx:5,flag:'fri'},{idx:6,flag:'sat'},{idx:7,flag:'sun'}]
+      .forEach(({idx,flag})=>{
+        const colMap={mon:3,tue:4,wed:5,thu:6,fri:7,sat:8,sun:9};
+        if(r[colMap[flag]]==='✓')
+          weekData[idx].push({title:ev.title,time:ev.startTime+(ev.endTime?'–'+ev.endTime:''),
+            detail:ev.location+(ev.notes?' · '+ev.notes:''),type:ev.type,drop:ev.drop,pick:ev.pick});
+      });
     });
-  });
-}
-
-async function loadShopping() {
-  const rows = await sheetsGet("'🛒 Shopping'!A4:G200");
-  shopping = rows.filter(r=>r[1]).map((r,i)=>({id:i+1,done:r[0]==='✓',name:r[1]||'',qty:r[3]||'1x',by:r[4]||'',rowNum:i+4}));
-  nextId = shopping.length+1;
-}
-
-async function loadTasks() {
-  const rows = await sheetsGet("'✅ Tasks'!A4:H200");
-  tasks = rows.filter(r=>r[0]).map((r,i)=>({id:i+1,name:r[0],owner:r[1]||'',due:r[2]||'',done:r[3]==='Done',priority:r[4]||'Medium',recurring:r[5]==='Yes',rowNum:i+4}));
-}
-
-async function loadContacts() {
-  const rows = await sheetsGet("'🎒 Sophia'!A4:F15");
-  if(rows.length) contactsData.sophia = rows.filter(r=>r[0]).map(r=>({name:r[0],role:r[1]||'',phone:r[2]||'',email:r[3]||'',note:r[5]||''}));
+  } catch(e) { console.warn('bootstrap recurring:', e); }
+  try {
+    const rows = await sheetsGet("'🛒 Shopping'!A4:G200");
+    shopping.length=0;
+    rows.filter(r=>r[1]).forEach((r,i)=>shopping.push({id:i+1,done:r[0]==='✓',name:r[1]||'',qty:r[3]||'1x',by:r[4]||''}));
+    nextId=shopping.length+1;
+  } catch(e) { console.warn('bootstrap shopping:', e); }
+  try {
+    const rows = await sheetsGet("'✅ Tasks'!A4:H200");
+    tasks.length=0;
+    rows.filter(r=>r[0]).forEach((r,i)=>tasks.push({id:i+1,name:r[0],owner:r[1]||'',due:r[2]||'',done:r[3]==='Done',priority:r[4]||'Medium',recurring:r[5]==='Yes'}));
+  } catch(e) { console.warn('bootstrap tasks:', e); }
+  try {
+    const rows = await sheetsGet("'🎒 Sophia'!A4:F15");
+    if(rows.length) contactsData.sophia=rows.filter(r=>r[0]).map(r=>({name:r[0],role:r[1]||'',phone:r[2]||'',email:r[3]||'',note:r[5]||''}));
+  } catch(e) { console.warn('bootstrap contacts:', e); }
 }
 
 // ═══════════════════════════════════
