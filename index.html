@@ -550,6 +550,7 @@ const ANTHROPIC_KEY = ''; // Paste your Anthropic API key here for timetable rea
 
 let accessToken = null;
 const STORAGE_KEY = 'familyapp_v1';
+const now = new Date();
 
 // ═══════════════════════════════════
 // INIT — check if already set up
@@ -578,8 +579,13 @@ function startSignIn() {
     callback: (response) => {
       if (response.error) { goToStep(1); return; }
       accessToken = response.access_token;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({...saved, token: accessToken}));
-      goToStep(3);
+      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      s.token = accessToken;
+      s.setupDone = true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      document.getElementById('onboarding').style.display = 'none';
+      showApp();
+      loadAllSheets();
     }
   });
   client.requestAccessToken();
@@ -710,7 +716,6 @@ function showApp() {
 // ═══════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════
-const now = new Date();
 
 function initApp() {
   const hour = now.getHours();
@@ -1315,5 +1320,3 @@ function signOut() {
 
 </body>
 </html>
-
-
