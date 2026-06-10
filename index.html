@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.6.6 -->
+<!-- Family Home App v1.7.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -288,6 +288,86 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .reconnect-banner.visible { display: block; }
 @keyframes slideUp { from { transform: translateX(-50%) translateY(20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
 
+
+/* ACTIVITY COLOURS BY TYPE */
+.day-event-block.school    { border-left-color: var(--sophia); }
+.day-event-block.betreuung { border-left-color: var(--betreuung); background: var(--betreuung-light); }
+.day-event-block.family    { border-left-color: var(--jo); }
+.day-event-block.activity  { border-left-color: #D97706; background: #FFFBEB; }
+.day-event-block.birthday  { border-left-color: #DB2777; background: #FDF2F8; }
+.day-event-block.work      { border-left-color: var(--partner); }
+
+/* BIRTHDAY CARD */
+.birthday-card {
+  background: linear-gradient(135deg, #FDF2F8, #FCE7F3);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  border-left: 3.5px solid #DB2777; box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.birthday-emoji { font-size: 24px; }
+.birthday-name { font-size: 14px; font-weight: 600; color: #831843; }
+.birthday-sub { font-size: 12px; color: #9D174D; margin-top:2px; }
+
+/* EMOJI PICKER */
+.emoji-picker {
+  display: none; flex-wrap: wrap; gap: 6px;
+  background: var(--bg); border-radius: 10px;
+  padding: 10px; margin-top: 8px;
+}
+.emoji-picker.open { display: flex; }
+.emoji-opt {
+  font-size: 22px; width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; cursor: pointer; transition: background 0.1s;
+  border: 1.5px solid transparent;
+}
+.emoji-opt:hover, .emoji-opt.selected { background: var(--sophia-light); border-color: var(--sophia); }
+.emoji-display {
+  font-size: 28px; width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1.5px solid var(--border);
+  cursor: pointer; background: var(--bg);
+}
+
+/* SERIES EDIT OPTIONS */
+.series-opts {
+  display: none; background: var(--bg); border-radius: 10px;
+  padding: 10px; margin-bottom: 14px; gap: 8px; flex-direction: column;
+}
+.series-opts.open { display: flex; }
+.series-opt-btn {
+  padding: 10px 14px; border-radius: 8px; border: 1.5px solid var(--border);
+  background: var(--white); font-size: 13px; font-weight: 500;
+  cursor: pointer; text-align: left; font-family: inherit; color: var(--text);
+}
+.series-opt-btn:hover { border-color: var(--sophia); color: var(--sophia); }
+
+/* KIT CHECKLIST WIDGET */
+.kit-widget {
+  background: var(--white); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 12px;
+  box-shadow: var(--shadow); border-left: 3.5px solid #D97706;
+}
+.kit-widget-title {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 10px;
+}
+.kit-check-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.kit-check-item:last-child { border-bottom: none; }
+.kit-check-box {
+  width: 22px; height: 22px; border-radius: 6px;
+  border: 2px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; transition: all 0.15s;
+}
+.kit-check-item.checked .kit-check-box { background: var(--sophia); border-color: var(--sophia); color: #fff; }
+.kit-check-item.checked .kit-check-label { text-decoration: line-through; opacity: 0.5; }
+.kit-check-label { font-size: 14px; color: var(--text); }
+.kit-check-icon { font-size: 18px; }
+
 </style>
 </head>
 <body>
@@ -301,7 +381,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.6</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.0</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -525,7 +605,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.6</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.0</div>
   </div>
 </div>
 
@@ -538,10 +618,26 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <button class="event-editor-close" onclick="closeEventEditor()">✕</button>
     </div>
     <div class="event-editor-body">
-      <div class="field-group">
-        <div class="field-label">Activity name</div>
-        <input class="field-input" id="ev-title" type="text" placeholder="e.g. Swimming">
+      <!-- Series edit options (shown for recurring activities) -->
+      <div class="series-opts" id="series-opts">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">This is a recurring activity. Edit:</div>
+        <button class="series-opt-btn" onclick="setSeriesEditMode('occurrence')">📅 Just this occurrence</button>
+        <button class="series-opt-btn" onclick="setSeriesEditMode('future')">📅 This and all future</button>
       </div>
+
+      <!-- Icon + Title row -->
+      <div class="field-row" style="align-items:flex-end;margin-bottom:14px">
+        <div class="field-group" style="flex:0">
+          <div class="field-label">Icon</div>
+          <div class="emoji-display" id="ev-icon-display" onclick="toggleEmojiPicker()">🎯</div>
+        </div>
+        <div class="field-group" style="flex:1">
+          <div class="field-label">Activity name</div>
+          <input class="field-input" id="ev-title" type="text" placeholder="e.g. Swimming" oninput="autoIcon(this.value)">
+        </div>
+      </div>
+      <div class="emoji-picker" id="emoji-picker"></div>
+
       <div class="field-row">
         <div class="field-group">
           <div class="field-label">Start time</div>
@@ -587,11 +683,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       </div>
       <div class="field-group">
         <div class="field-label">Type</div>
-        <div class="event-type-row">
+        <div class="event-type-row" id="ev-type-row">
           <span class="type-chip active" data-type="school" onclick="selectType(this)">🎒 School</span>
           <span class="type-chip" data-type="betreuung" onclick="selectType(this)">🏠 Betreuung</span>
           <span class="type-chip" data-type="family" onclick="selectType(this)">👨‍👩‍👧 Family</span>
           <span class="type-chip" data-type="activity" onclick="selectType(this)">⭐ Activity</span>
+          <span class="type-chip" data-type="birthday" onclick="selectType(this)">🎂 Birthday</span>
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Recurring?</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:4px 0">
+          <input type="checkbox" id="ev-recurring" style="width:18px;height:18px;cursor:pointer">
+          <label for="ev-recurring" style="font-size:14px;color:var(--text);cursor:pointer">This is a recurring series</label>
         </div>
       </div>
       <div class="editor-actions">
@@ -609,7 +713,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.6.6';
+const APP_VERSION = '1.7.0';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1061,39 +1165,16 @@ function renderToday() {
   const tt = timetable[todayKey]||{subjects:[],kit:[]};
   const todayEvents = weekData[idx]||[];
 
-  // Build kit/prep banners
-  const kitBannersEl = document.getElementById('kit-banners');
-  kitBannersEl.innerHTML = '';
-
-  // Kit from timetable
-  if (tt.kit && tt.kit.length) {
-    tt.kit.forEach(k => {
-      const b = document.createElement('div');
-      b.className = 'pickup-banner';
-      b.innerHTML = `<div class="icon">${k.includes('PE')||k.includes('Swim')?'👟':'🎒'}</div>
-        <div><p style="font-size:13px;font-weight:500;color:var(--dark)">${k} needed today</p>
-        <span style="font-size:12px;color:var(--text-secondary)">From Sophia's timetable</span></div>`;
-      kitBannersEl.appendChild(b);
-    });
-  }
-
-  // Kit from activity events (swimming, sport etc)
+  // Build kit checklist
+  const allKit = [];
+  if (tt.kit && tt.kit.length) allKit.push(...tt.kit);
   todayEvents.forEach(ev => {
     const title = (ev.title||'').toLowerCase();
-    const notes = (ev.detail||'').toLowerCase();
-    let kit = null;
-    if (title.includes('swim') || notes.includes('swim')) kit = {icon:'🏊', label:'Swim kit needed', sub: ev.title + (ev.time ? ' · ' + ev.time : '')};
-    else if (title.includes('sport') || title.includes('turnen') || title.includes('pe') || notes.includes('gym kit')) kit = {icon:'👟', label:'PE/Sport kit needed', sub: ev.title + (ev.time ? ' · ' + ev.time : '')};
-    else if (ev.notes && ev.notes.toLowerCase().includes('kit')) kit = {icon:'🎒', label: ev.notes, sub: ev.title};
-    if (kit) {
-      const b = document.createElement('div');
-      b.className = 'pickup-banner';
-      b.innerHTML = `<div class="icon">${kit.icon}</div>
-        <div><p style="font-size:13px;font-weight:500;color:var(--dark)">${kit.label}</p>
-        <span style="font-size:12px;color:var(--text-secondary)">${kit.sub}</span></div>`;
-      kitBannersEl.appendChild(b);
-    }
+    if (title.includes('swim')) { if (!allKit.includes('🏊 Swim kit')) allKit.push('🏊 Swim kit'); }
+    else if (title.includes('turnen') || title.includes('sport') || title.includes(' pe ')) { if (!allKit.includes('🎽 PE kit')) allKit.push('🎽 PE kit'); }
+    if (ev.kit && Array.isArray(ev.kit)) ev.kit.forEach(k => { if (!allKit.includes(k)) allKit.push(k); });
   });
+  renderKitChecklist(allKit);
 
 
 
@@ -1183,20 +1264,39 @@ function renderWeek(){
     eventsEl.appendChild(empty);
   }
 
-  events.forEach((ev,evIdx)=>{
+  // Sort by start time
+  const sortedEvents = [...events].sort((a,b)=>{
+    const ta = (a.time||'').split('–')[0].replace(':','') || '9999';
+    const tb = (b.time||'').split('–')[0].replace(':','') || '9999';
+    return ta.localeCompare(tb);
+  });
+  sortedEvents.forEach((ev,evIdx)=>{
+    const realIdx = events.indexOf(ev);
+    evIdx = realIdx;
     const div=document.createElement('div');
-    div.className='day-event-block'+(ev.type==='betreuung'?' betreuung':'');
-    if(ev.type==='family')div.style.borderLeftColor='var(--family)';
-    if(ev.type==='jo-event')div.style.borderLeftColor='var(--jo)';
+    div.className='day-event-block ' + (ev.type||'activity');
     const isMainSchool = ev.type==='school' && (ev.title==='School'||ev.title==='School (full day)');
     const subjectLine=isMainSchool&&tt.subjects.length?`<div class="day-event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
-    div.innerHTML=`<div class="day-event-row"><div class="day-event-title">${ev.title}</div><div class="day-event-time">${ev.time||''}</div></div>
-      <div class="day-event-detail">${ev.detail||''}</div>${subjectLine}
-      ${ev.drop||ev.pick?`<div class="day-event-owners">
-        ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
-        ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
-      </div>`:''}`;
-    div.onclick=(()=>{const di=selectedDay,ei=evIdx;return()=>openEventEditor(di,ei);})();
+    const icon = ev.icon || autoIconFor(ev.title) || '';
+    const isBirthday = ev.type==='birthday';
+    if(isBirthday){
+      div.className='birthday-card';
+      div.innerHTML=`<div class="birthday-emoji">🎂</div>
+        <div><div class="birthday-name">${ev.title}</div>
+        ${ev.detail?`<div class="birthday-sub">${ev.detail}</div>`:''}
+        </div>`;
+    } else {
+      div.innerHTML=`<div class="day-event-row">
+        <div class="day-event-title">${icon?`<span style="margin-right:5px">${icon}</span>`:''}${ev.title}</div>
+        <div class="day-event-time">${ev.time||''}</div></div>
+        <div class="day-event-detail">${ev.detail||''}</div>${subjectLine}
+        ${ev.seriesId?'<div style="font-size:10px;color:var(--text-secondary);margin-top:4px">🔁 Recurring</div>':''}
+        ${ev.drop||ev.pick?`<div class="day-event-owners">
+          ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
+          ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
+        </div>`:''}`;
+    }
+    div.onclick=(()=>{const di=selectedDay,ei=realIdx;return()=>openEventEditor(di,ei);})();
     eventsEl.appendChild(div);
   });
 }
@@ -1208,9 +1308,13 @@ let editingDay=null,editingIdx=null;
 
 function openEventEditor(dayIdx,evIdx){
   editingDay=dayIdx;editingIdx=evIdx;
+  seriesEditMode=null;
   const isNew=evIdx===null;
   document.getElementById('event-editor-title').textContent=isNew?`Add — ${dayNames[dayIdx]}`:'Edit activity';
   document.getElementById('btn-delete-event').style.display=isNew?'none':'block';
+  document.getElementById('emoji-picker').className='emoji-picker'; // close picker
+  // Remove any previous series mode label
+  document.querySelectorAll('.series-mode-label').forEach(e=>e.remove());
   if(!isNew){
     const ev=weekData[dayIdx][evIdx];
     const tp=(ev.time||'').split('–');
@@ -1222,6 +1326,11 @@ function openEventEditor(dayIdx,evIdx){
     document.getElementById('ev-notes').value=dp[1]||'';
     document.getElementById('ev-drop').value=ev.drop||'';
     document.getElementById('ev-pick').value=ev.pick||'';
+    setEventIcon(ev.icon || autoIconFor(ev.title) || '🎯');
+    document.getElementById('ev-recurring').checked = !!ev.seriesId;
+    // Show series options if recurring
+    const seriesOpts = document.getElementById('series-opts');
+    if (seriesOpts) seriesOpts.classList.toggle('open', !!ev.seriesId);
     document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>{c.classList.remove('active');if(c.dataset.type===ev.type)c.classList.add('active');});
     // Timetable section for school activities
     const isSchool = ev.type==='school';
@@ -1239,6 +1348,9 @@ function openEventEditor(dayIdx,evIdx){
   } else {
     ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('ev-start').value='';document.getElementById('ev-end').value='';
+    document.getElementById('ev-recurring').checked=false;
+    setEventIcon('🎯');
+    document.getElementById('series-opts').classList.remove('open');
     document.querySelectorAll('#event-editor-overlay .type-chip').forEach((c,i)=>c.classList.toggle('active',i===0));
     document.getElementById('ev-timetable-section').style.display='none';
   }
@@ -1266,6 +1378,15 @@ function closeEventEditor(){document.getElementById('event-editor-overlay').clas
 
 function selectType(el){document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');}
 
+function autoIconFor(title) {
+  if (!title) return null;
+  const lower = title.toLowerCase();
+  for (const [key, emoji] of Object.entries(AUTO_ICONS)) {
+    if (lower.includes(key)) return emoji;
+  }
+  return null;
+}
+
 function saveEvent(){
   const title=document.getElementById('ev-title').value.trim();
   if(!title){document.getElementById('ev-title').focus();return;}
@@ -1275,14 +1396,56 @@ function saveEvent(){
   const notes=document.getElementById('ev-notes').value.trim();
   const drop=document.getElementById('ev-drop').value.trim();
   const pick=document.getElementById('ev-pick').value.trim();
-  const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'school'}}).dataset.type;
+  const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
+  const icon=getEventIcon();
+  const isRecurring=document.getElementById('ev-recurring').checked;
   const time=start?(end?`${start}–${end}`:start):'';
   const detail=[location,notes].filter(Boolean).join(' · ');
-  const ev={title,time,detail,type,drop,pick};
+
   if(!weekData[editingDay])weekData[editingDay]=[];
-  if(editingIdx===null)weekData[editingDay].push(ev);
-  else weekData[editingDay][editingIdx]=ev;
-  // Save timetable subjects/kit if school type
+
+  if(editingIdx===null){
+    // New event
+    const seriesId = isRecurring ? ('s_'+Date.now()) : null;
+    const ev={title,time,detail,type,icon,drop,pick,seriesId};
+    weekData[editingDay].push(ev);
+  } else {
+    const existing = weekData[editingDay][editingIdx];
+    const seriesId = isRecurring ? (existing.seriesId || 's_'+Date.now()) : null;
+    const ev={title,time,detail,type,icon,drop,pick,seriesId};
+
+    if(existing.seriesId && seriesEditMode === 'occurrence'){
+      // Only edit this one — add override flag
+      ev.seriesOverride = true;
+      ev.seriesId = existing.seriesId; // keep series link for reference
+      weekData[editingDay][editingIdx]=ev;
+    } else if(existing.seriesId && seriesEditMode === 'future'){
+      // Edit this and all future days with same seriesId
+      for(let d=1;d<=7;d++){
+        if(!weekData[d])continue;
+        weekData[d].forEach((e,i)=>{
+          if(e.seriesId===existing.seriesId && d>=editingDay){
+            weekData[d][i]={...ev, seriesId:existing.seriesId};
+          }
+        });
+      }
+    } else {
+      // No series or edit all
+      if(existing.seriesId && !seriesEditMode){
+        // Edit all occurrences of this series
+        for(let d=1;d<=7;d++){
+          if(!weekData[d])continue;
+          weekData[d].forEach((e,i)=>{
+            if(e.seriesId===existing.seriesId) weekData[d][i]={...ev,seriesId:existing.seriesId};
+          });
+        }
+      } else {
+        weekData[editingDay][editingIdx]=ev;
+      }
+    }
+  }
+
+  // Save timetable if school
   if(type==='school'){
     const jsDay=editingDay===7?0:editingDay;
     const key=dayKeyMap[jsDay];
