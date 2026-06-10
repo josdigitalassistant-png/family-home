@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.6.4 -->
+<!-- Family Home App v1.6.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -301,7 +301,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.4</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.5</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -374,7 +374,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
   <div class="section" id="sec-tasks">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="section-label" style="margin:0">Tasks</div>
-      <button class="btn-add-event" onclick="openTaskEditor(null)" title="Add task">+</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="show-done-btn" onclick="toggleShowDone()" style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:none;color:var(--text-secondary);cursor:pointer">Show done</button>
+        <button class="btn-add-event" onclick="openTaskEditor(null)" title="Add task">+</button>
+      </div>
     </div>
     <div id="task-list"></div>
   </div>
@@ -522,7 +525,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.4</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.5</div>
   </div>
 </div>
 
@@ -606,7 +609,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1350,38 +1353,66 @@ let tasks=[
   {id:5,name:'Renew parking permit',owner:'Partner',due:'1 Nov',priority:'Low',recurring:false,done:false},
 ];
 
+let showDoneTasks = false;
+
+function toggleShowDone() {
+  showDoneTasks = !showDoneTasks;
+  const btn = document.getElementById('show-done-btn');
+  if (btn) {
+    btn.textContent = showDoneTasks ? 'Hide done' : 'Show done';
+    btn.style.color = showDoneTasks ? 'var(--sophia)' : 'var(--text-secondary)';
+    btn.style.borderColor = showDoneTasks ? 'var(--sophia)' : 'var(--border)';
+  }
+  renderTasks();
+}
+
 function renderTasks(){
   const el=document.getElementById('task-list');el.innerHTML='';
-  tasks.forEach((task,ti)=>{
+  const visible = tasks.filter((t,i) => showDoneTasks || !t.done);
+  if (!visible.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:24px 0">No tasks — tap + to add one 🎉</div>';
+    return;
+  }
+  visible.forEach((task)=>{
+    const ti = tasks.indexOf(task);
     const div=document.createElement('div');div.className='task-item'+(task.done?' done':'');
     const oc=task.owner==='Jo'?'jo':task.owner==='Partner'?'partner':'';
     const pc=task.priority==='High'?'badge-high':task.priority==='Medium'?'badge-medium':'badge-low';
+    const dueStr = task.due ? formatDueDate(task.due) : '';
     div.innerHTML=`
       <div class="task-row">
-        <div class="task-check" data-ti="${ti}">${task.done?'✓':''}</div>
+        <div class="task-check">${task.done?'✓':''}</div>
         <div class="task-name">${task.name}</div>
-        <div class="task-edit-btn" data-ti="${ti}">✏️</div>
+        <div class="task-edit-btn">✏️</div>
       </div>
       <div class="task-badges">
-        <span class="badge ${pc}">${task.priority}</span>
+        ${task.priority?`<span class="badge ${pc}">${task.priority}</span>`:''}
         ${task.owner?`<span class="badge badge-owner ${oc}">${task.owner}</span>`:''}
-        ${task.due?`<span class="badge" style="background:var(--bg);color:var(--text-secondary)">📅 ${task.due}</span>`:''}
+        ${dueStr?`<span class="badge" style="background:var(--bg);color:var(--text-secondary)">📅 ${dueStr}</span>`:''}
         ${task.recurring?'<span class="badge" style="background:var(--sophia-light);color:var(--sophia)">🔁</span>':''}
       </div>`;
-    // Checkbox toggles done
     div.querySelector('.task-check').onclick=(e)=>{
       e.stopPropagation();
       task.done=!task.done;
       saveTasksToStorage();
       renderTasks();
     };
-    // Edit button opens editor
     div.querySelector('.task-edit-btn').onclick=(e)=>{
       e.stopPropagation();
       openTaskEditor(ti);
     };
     el.appendChild(div);
   });
+}
+
+function formatDueDate(due) {
+  if (!due) return '';
+  // If it's an ISO date string, format it nicely
+  const d = new Date(due);
+  if (!isNaN(d.getTime()) && due.includes('-')) {
+    return d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined});
+  }
+  return due; // Free text fallback
 }
 
 // ═══════════════════════════════════
@@ -1578,7 +1609,8 @@ function openTaskEditor(idx) {
     document.getElementById('task-owner-input').value = '';
     document.getElementById('task-due-input').value = '';
     document.getElementById('task-recurring-input').checked = false;
-    document.querySelectorAll('#task-priority-row .type-chip').forEach((c,i) => c.classList.toggle('active', i===1));
+    // No default priority selected
+    document.querySelectorAll('#task-priority-row .type-chip').forEach(c => c.classList.remove('active'));
   }
   document.getElementById('task-editor-overlay').classList.add('open');
 }
@@ -1596,7 +1628,8 @@ function saveTask() {
   const owner = document.getElementById('task-owner-input').value.trim();
   const due = document.getElementById('task-due-input').value.trim();
   const recurring = document.getElementById('task-recurring-input').checked;
-  const priority = (document.querySelector('#task-priority-row .type-chip.active') || {dataset:{p:'Medium'}}).dataset.p;
+  const priorityEl = document.querySelector('#task-priority-row .type-chip.active');
+  const priority = priorityEl ? priorityEl.dataset.p : '';
   const task = {id: Date.now(), name, owner, due, recurring, priority, done: false};
   if (editingTaskIdx === null) tasks.push(task);
   else tasks[editingTaskIdx] = {...tasks[editingTaskIdx], ...task};
@@ -1770,15 +1803,15 @@ function toggleSophiaView() {
           <input class="field-input" id="task-owner-input" type="text" placeholder="Jo / Partner / Both">
         </div>
         <div class="field-group">
-          <div class="field-label">Due</div>
-          <input class="field-input" id="task-due-input" type="text" placeholder="e.g. Sunday">
+          <div class="field-label">Due date</div>
+          <input class="field-input" id="task-due-input" type="date">
         </div>
       </div>
       <div class="field-group">
         <div class="field-label">Priority</div>
         <div class="event-type-row" id="task-priority-row">
           <span class="type-chip" data-p="High" onclick="selectPriority(this)" style="border-color:#FCA5A5;color:#991B1B">High</span>
-          <span class="type-chip active" data-p="Medium" onclick="selectPriority(this)">Medium</span>
+          <span class="type-chip" data-p="Medium" onclick="selectPriority(this)">Medium</span>
           <span class="type-chip" data-p="Low" onclick="selectPriority(this)">Low</span>
         </div>
       </div>
