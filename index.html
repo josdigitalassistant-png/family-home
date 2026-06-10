@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.5.3 -->
+<!-- Family Home App v1.5.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -276,7 +276,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.5.3</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.5.4</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -495,7 +495,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.5.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.5.4</div>
   </div>
 </div>
 
@@ -579,7 +579,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.5.3';
+const APP_VERSION = '1.5.4';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1505,5 +1505,94 @@ function addCustomKit(dayKey) {
 }
 function removeCustomKit(el) { el.remove(); }
 </script>
+
+<!-- TASK EDITOR -->
+<div class="list-editor-overlay" id="task-editor-overlay" onclick="if(event.target===this)closeTaskEditor()">
+  <div class="list-editor-sheet">
+    <div class="list-editor-handle"></div>
+    <div class="list-editor-header">
+      <div class="list-editor-title" id="task-editor-title">Add task</div>
+      <button class="list-editor-close" onclick="closeTaskEditor()">✕</button>
+    </div>
+    <div class="list-editor-body">
+      <div class="field-group">
+        <div class="field-label">Task</div>
+        <input class="field-input" id="task-name-input" type="text" placeholder="e.g. Book dentist">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Owner</div>
+          <input class="field-input" id="task-owner-input" type="text" placeholder="Jo / Partner / Both">
+        </div>
+        <div class="field-group">
+          <div class="field-label">Due</div>
+          <input class="field-input" id="task-due-input" type="text" placeholder="e.g. Sunday">
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Priority</div>
+        <div class="event-type-row" id="task-priority-row">
+          <span class="type-chip" data-p="High" onclick="selectPriority(this)" style="border-color:#FCA5A5;color:#991B1B">High</span>
+          <span class="type-chip active" data-p="Medium" onclick="selectPriority(this)">Medium</span>
+          <span class="type-chip" data-p="Low" onclick="selectPriority(this)">Low</span>
+        </div>
+      </div>
+      <div class="field-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="task-recurring-input" style="width:18px;height:18px;cursor:pointer">
+        <label for="task-recurring-input" style="font-size:14px;color:var(--text);cursor:pointer">Recurring task</label>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-save" onclick="saveTask()">Save</button>
+        <button class="btn-delete" id="btn-delete-task" onclick="deleteTask()" style="display:none">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT EDITOR -->
+<div class="list-editor-overlay" id="contact-editor-overlay" onclick="if(event.target===this)closeContactEditor()">
+  <div class="list-editor-sheet">
+    <div class="list-editor-handle"></div>
+    <div class="list-editor-header">
+      <div class="list-editor-title" id="contact-editor-title">Edit contact</div>
+      <button class="list-editor-close" onclick="closeContactEditor()">✕</button>
+    </div>
+    <div class="list-editor-body">
+      <div class="field-group">
+        <div class="field-label">Name</div>
+        <input class="field-input" id="contact-name-input" type="text" placeholder="e.g. Dr. Müller">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Role / Organisation</div>
+        <input class="field-input" id="contact-role-input" type="text" placeholder="e.g. Paediatrician">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Phone</div>
+        <input class="field-input" id="contact-phone-input" type="tel" placeholder="e.g. 044 123 45 67">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Email</div>
+        <input class="field-input" id="contact-email-input" type="email" placeholder="e.g. info@praxis.ch">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Note</div>
+        <input class="field-input" id="contact-note-input" type="text" placeholder="e.g. Tue & Thu">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Group</div>
+        <div class="event-type-row" id="contact-group-row">
+          <span class="type-chip active" data-g="sophia" onclick="selectContactGroup(this)">🎒 Sophia</span>
+          <span class="type-chip" data-g="household" onclick="selectContactGroup(this)">🏠 Household</span>
+          <span class="type-chip" data-g="emergency" onclick="selectContactGroup(this)">🚨 Emergency</span>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-save" onclick="saveContact()">Save</button>
+        <button class="btn-delete" id="btn-delete-contact" onclick="deleteContact()" style="display:none">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
