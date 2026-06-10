@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.0 -->
+<!-- Family Home App v1.7.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -381,7 +381,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.0</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.1</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -605,7 +605,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.0</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.1</div>
   </div>
 </div>
 
@@ -713,7 +713,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1942,6 +1942,117 @@ function toggleSophiaView() {
   const v = document.getElementById('sophia-view');
   v.classList.toggle('open');
   document.querySelector('.sophia-view-btn').textContent = v.classList.contains('open') ? '✕ Close Sophia\'s view' : '👧 Sophia\'s view';
+}
+
+// ═══════════════════════════════════
+// EMOJI + ICON SYSTEM
+// ═══════════════════════════════════
+const EMOJI_LIST = ['🎒','🏫','📚','✏️','🎨','🎭','🎬','🎵','🎸','🎹','🎺','🎻','🏊','🏋️','⚽','🏀','🎾','🏸','🤸','🚴','🧘','🎯','🎪','🏖','🌳','🏥','🦷','💉','🎂','🎁','🎉','🎈','🛒','🍕','🍎','☕','🚗','✈️','👨‍👩‍👧','👧','👦','🐾','🌟','⭐','💫','❤️','🏠','💼'];
+
+const AUTO_ICONS = {
+  swim:'🏊',pool:'🏊',schwimm:'🏊',
+  school:'🎒',schule:'🎒',hort:'🏠',betreuung:'🏠',
+  sport:'🏋️',turnen:'🤸',gym:'🏋️',
+  music:'🎵',musik:'🎵',piano:'🎹',guitar:'🎸',
+  art:'🎨',kunst:'🎨',
+  birthday:'🎂',geburtstag:'🎂',
+  doctor:'🏥',arzt:'🏥',dentist:'🦷',zahnarzt:'🦷',
+  football:'⚽',soccer:'⚽',basketball:'🏀',tennis:'🎾',
+  family:'👨‍👩‍👧',park:'🌳',
+  shopping:'🛒',
+};
+
+function autoIconFor(title) {
+  if (!title) return null;
+  const lower = title.toLowerCase();
+  for (const [key, emoji] of Object.entries(AUTO_ICONS)) {
+    if (lower.includes(key)) return emoji;
+  }
+  return null;
+}
+
+function autoIcon(title) {
+  const icon = autoIconFor(title);
+  if (icon) setEventIcon(icon);
+}
+
+function setEventIcon(emoji) {
+  const el = document.getElementById('ev-icon-display');
+  if (el) el.textContent = emoji;
+  document.querySelectorAll('.emoji-opt').forEach(e => {
+    e.classList.toggle('selected', e.dataset.emoji === emoji);
+  });
+}
+
+function getEventIcon() {
+  const el = document.getElementById('ev-icon-display');
+  return el ? el.textContent.trim() : '';
+}
+
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  if (!picker) return;
+  if (!picker.children.length) {
+    EMOJI_LIST.forEach(em => {
+      const span = document.createElement('span');
+      span.className = 'emoji-opt';
+      span.dataset.emoji = em;
+      span.textContent = em;
+      span.onclick = () => { setEventIcon(em); picker.classList.remove('open'); };
+      picker.appendChild(span);
+    });
+  }
+  picker.classList.toggle('open');
+}
+
+// ═══════════════════════════════════
+// SERIES EDIT MODE
+// ═══════════════════════════════════
+let seriesEditMode = null;
+
+function setSeriesEditMode(mode) {
+  seriesEditMode = mode;
+  const opts = document.getElementById('series-opts');
+  if (opts) opts.classList.remove('open');
+  const label = mode === 'occurrence' ? '📅 Editing just this occurrence' : '📅 Editing this and all future';
+  const div = document.createElement('div');
+  div.style.cssText = 'font-size:12px;color:var(--sophia);font-weight:500;margin-bottom:10px;padding:6px 10px;background:var(--sophia-light);border-radius:8px';
+  div.textContent = label;
+  div.className = 'series-mode-label';
+  const body = document.querySelector('.event-editor-body');
+  const existing = body ? body.querySelector('.series-mode-label') : null;
+  if (existing) existing.remove();
+  if (body) body.insertBefore(div, body.children[1]);
+}
+
+// ═══════════════════════════════════
+// KIT CHECKLIST (Today tab)
+// ═══════════════════════════════════
+let kitChecked = {};
+
+function renderKitChecklist(kitItems) {
+  const el = document.getElementById('kit-banners');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!kitItems || !kitItems.length) return;
+
+  const widget = document.createElement('div');
+  widget.className = 'kit-widget';
+  widget.innerHTML = '<div class="kit-widget-title">🎒 Kit needed today</div>';
+
+  kitItems.forEach(item => {
+    const row = document.createElement('div');
+    const isChecked = kitChecked[item] || false;
+    row.className = 'kit-check-item' + (isChecked ? ' checked' : '');
+    row.innerHTML = `<div class="kit-check-box">${isChecked ? '✓' : ''}</div><div class="kit-check-label">${item}</div>`;
+    row.onclick = () => {
+      kitChecked[item] = !kitChecked[item];
+      renderKitChecklist(kitItems);
+    };
+    widget.appendChild(row);
+  });
+
+  el.appendChild(widget);
 }
 
 // ═══════════════════════════════════
