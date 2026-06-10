@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.6.3 -->
+<!-- Family Home App v1.6.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -273,6 +273,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 }
 .pull-indicator.visible { display: block; }
 
+
+/* RECONNECT BANNER */
+.reconnect-banner {
+  display: none; position: fixed; bottom: 70px; left: 50%;
+  transform: translateX(-50%); z-index: 300;
+  background: var(--dark); color: #fff;
+  padding: 10px 20px; border-radius: 20px;
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  cursor: pointer; white-space: nowrap;
+  animation: slideUp 0.3s ease;
+}
+.reconnect-banner.visible { display: block; }
+@keyframes slideUp { from { transform: translateX(-50%) translateY(20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+
 </style>
 </head>
 <body>
@@ -286,7 +301,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.3</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.4</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -507,7 +522,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.4</div>
   </div>
 </div>
 
@@ -591,7 +606,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.6.3';
+const APP_VERSION = '1.6.4';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -789,32 +804,58 @@ function showApp() {
 }
 
 let syncInterval = null;
+let tokenExpiredAt = null;
 
 function startAutoSync() {
-  // Option B: poll every 60 seconds
   if (syncInterval) clearInterval(syncInterval);
+  // Poll every 60s but only if token is valid — no popup attempts
   syncInterval = setInterval(() => {
-    if (accessToken && document.visibilityState === 'visible') {
+    if (accessToken && document.visibilityState === 'visible' && !tokenExpiredAt) {
       silentRefresh();
     }
   }, 60000);
 
-  // Option C: refresh when app comes back into focus
+  // On focus: if token expired show reconnect banner, otherwise sync
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && accessToken) {
-      silentRefresh();
+    if (document.visibilityState === 'visible') {
+      if (tokenExpiredAt) {
+        showReconnectBanner();
+      } else if (accessToken) {
+        silentRefresh();
+      }
     }
   });
 }
 
 let lastRefresh = 0;
 function silentRefresh() {
-  // Throttle: don't refresh more than once every 15 seconds
-  const now = Date.now();
-  if (now - lastRefresh < 15000) return;
-  lastRefresh = now;
+  const n = Date.now();
+  if (n - lastRefresh < 15000) return;
+  lastRefresh = n;
   showSyncPulse();
-  loadAllSheets().catch(() => setSyncError());
+  loadAllSheets().catch(e => {
+    console.warn('silentRefresh failed:', e);
+    setSyncError();
+  });
+}
+
+function showReconnectBanner() {
+  const b = document.getElementById('reconnect-banner');
+  if (b) b.classList.add('visible');
+}
+
+function hideReconnectBanner() {
+  const b = document.getElementById('reconnect-banner');
+  if (b) b.classList.remove('visible');
+}
+
+function reconnect() {
+  hideReconnectBanner();
+  tokenExpiredAt = null;
+  // Request new token — this will open popup only once on user tap (allowed by browser)
+  refreshToken().then(ok => {
+    if (ok) { loadAllSheets(); }
+  });
 }
 
 function showSyncPulse() {
@@ -826,6 +867,8 @@ function showSyncPulse() {
 }
 
 function setSyncLive() {
+  tokenExpiredAt = null;
+  hideReconnectBanner();
   const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live';
   const t=document.getElementById('topbar-sync');
   if(t) t.textContent='Synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
@@ -867,14 +910,22 @@ const APP_DATA_RANGE = "'AppData'!A1";
 async function sheetsGet(range) {
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`,
     {headers:{Authorization:`Bearer ${accessToken}`}});
-  if (res.status === 401) return refreshTokenAndRetry(() => sheetsGet(range));
+  if (res.status === 401) {
+    tokenExpiredAt = Date.now();
+    showReconnectBanner();
+    throw new Error('401 - token expired');
+  }
   if (!res.ok) throw new Error(res.status);
   return (await res.json()).values || [];
 }
 async function sheetsUpdate(range, values) {
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
     {method:'PUT',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
-  if (res.status === 401) return refreshTokenAndRetry(() => sheetsUpdate(range, values));
+  if (res.status === 401) {
+    tokenExpiredAt = Date.now();
+    showReconnectBanner();
+    throw new Error('401 - token expired');
+  }
 }
 async function sheetsAppend(range, values) {
   await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
@@ -885,7 +936,7 @@ async function ensureAppDataSheet() {
   try {
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
       {headers:{Authorization:`Bearer ${accessToken}`}});
-    if (res.status === 401) { await refreshToken(); return ensureAppDataSheet(); }
+    if (res.status === 401) { tokenExpiredAt = Date.now(); showReconnectBanner(); return; }
     if (!res.ok) return; // Can't check — skip, will fail gracefully later
     const meta = await res.json();
     if (!meta.sheets) return; // Unexpected response
@@ -1788,5 +1839,6 @@ function toggleSophiaView() {
   </div>
 </div>
 
+<div class="reconnect-banner" id="reconnect-banner" onclick="reconnect()">🔄 Tap to reconnect</div>
 </body>
 </html>
