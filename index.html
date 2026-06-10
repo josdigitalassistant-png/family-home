@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.3.3 -->
+<!-- Family Home App v1.4.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9,1248 +9,115 @@
 <meta name="theme-color" content="#003C4C">
 <title>Home</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client"></script>
-<script>
-// ═══════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════
-function openSettings() {
-  document.getElementById('settings-overlay').classList.add('open');
-  document.getElementById('tt-editor-wrap').style.display = 'none';
-  updateTTStatus();
-}
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('open');
-}
+<script src="https://accounts.google.com/gsi/client">
 
-function updateTTStatus() {
-  const keys = Object.keys(timetable);
-  const hasData = keys.some(k => timetable[k] && timetable[k].subjects && timetable[k].subjects.length);
-  const el = document.getElementById('tt-status');
-  if (el) el.textContent = hasData ? 'Last updated · tap to edit' : 'Tap to add subjects per day';
-}
-
-const KIT_OPTIONS = ['🎽 PE kit', '🎨 Art apron', '🎸 Instrument', '🏊 Swim kit', '📐 Geometry set'];
-const WEEK_DAYS = [
-  {key:'mon', label:'Monday'},
-  {key:'tue', label:'Tuesday'},
-  {key:'wed', label:'Wednesday'},
-  {key:'thu', label:'Thursday'},
-  {key:'fri', label:'Friday'},
-];
-
-function showTimetableEditor() {
-  const wrap = document.getElementById('tt-editor-wrap');
-  const editor = document.getElementById('tt-editor');
-  wrap.style.display = 'block';
-  editor.innerHTML = '';
-
-  // Validity period
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const validFrom = _s.ttValidFrom || '';
-  const validTo = _s.ttValidTo || '';
-
-  let html = `<div style="margin-bottom:14px">
-    <div class="tt-validity-label">Timetable valid period (optional)</div>
-    <div class="tt-validity-row">
-      <input type="date" id="tt-valid-from" value="${validFrom}" placeholder="From">
-      <input type="date" id="tt-valid-to" value="${validTo}" placeholder="Until">
-    </div>
-  </div>`;
-
-  WEEK_DAYS.forEach(({key, label}) => {
-    const d = timetable[key] || {subjects:[], kit:[]};
-    const subjectsStr = d.subjects.join(', ');
-    const kitActive = d.kit || [];
-    const kitChips = KIT_OPTIONS.map(k =>
-      `<span class="tt-kit-chip ${kitActive.includes(k)?'active':''}" onclick="toggleKit(this,'${key}','${k}')">${k}</span>`
-    ).join('');
-    html += `<div class="tt-day-card">
-      <div class="tt-day-header">
-        <span class="tt-day-name">${label}</span>
-      </div>
-      <input class="tt-subjects" id="tt-${key}" value="${subjectsStr}" placeholder="e.g. Deutsch, Mathe, Turnen">
-      <div class="tt-kit-row" id="tt-kit-${key}">${kitChips}</div>
-    </div>`;
-  });
-
-  editor.innerHTML = html;
-  // Scroll to editor
-  wrap.scrollIntoView({behavior:'smooth'});
-}
-
-function toggleKit(el, dayKey, kit) {
-  el.classList.toggle('active');
-}
-
-function saveTimetable() {
-  WEEK_DAYS.forEach(({key}) => {
-    const subjectsInput = document.getElementById('tt-'+key);
-    const subjects = subjectsInput ? subjectsInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    const kitChips = document.querySelectorAll(`#tt-kit-${key} .tt-kit-chip.active`);
-    const kit = Array.from(kitChips).map(c => c.textContent.trim());
-    timetable[key] = {subjects, kit};
-  });
-
-  const validFrom = document.getElementById('tt-valid-from')?.value || '';
-  const validTo = document.getElementById('tt-valid-to')?.value || '';
-
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable, ttValidFrom: validFrom, ttValidTo: validTo}));
-
-  document.getElementById('tt-editor-wrap').style.display = 'none';
-  updateTTStatus();
-  renderToday();
-  renderWeek();
-
-  // Brief confirmation
-  const btn = document.querySelector('.tt-save-btn');
-  if(btn){btn.textContent='✓ Saved!'; setTimeout(()=>btn.textContent='Save timetable',1500);}
-}
-
-function handleTimetableUpload(e) {
-  const file = e.target.files[0]; if(!file) return;
-  document.getElementById('settings-processing').style.display = 'block';
-  const reader = new FileReader();
-  reader.onload = async (ev) => {
-    const base64 = ev.target.result.split(',')[1];
-    try {
-      const result = await readTimetableWithClaude(base64);
-      Object.assign(timetable, result);
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable}));
-      document.getElementById('settings-processing').style.display = 'none';
-      showTimetableEditor();
-      renderToday(); renderWeek();
-    } catch(err) {
-      document.getElementById('settings-processing').style.display = 'none';
-      alert('Could not read timetable automatically — please edit manually.');
-      showTimetableEditor();
-    }
-  };
-  reader.readAsDataURL(file);
-}
-
-function handlePDFUpload(e) {
-  const file = e.target.files[0]; if(!file) return;
-  alert('PDF uploaded — AI reading of PDFs coming soon. For now, please enter the schedule manually.');
-}
-
-async function readTimetableWithClaude(base64) {
-  if(!ANTHROPIC_KEY) {
-    return {
-      mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
-      tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
-      wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-      thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
-      fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
-    };
-  }
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-    body: JSON.stringify({
-      model:'claude-sonnet-4-20250514', max_tokens:1024,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
-        {type:'text',text:`This is a primary school timetable. Extract subjects per weekday. Return ONLY JSON:
-{"mon":{"subjects":["Subject1"],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}}
-Add "🎽 PE kit" in kit if Turnen/Sport/PE that day. Add "🎨 Art apron" if Kunst/Werken. Add "🎸 Instrument" if Musik (instrument day).`}
-      ]}]
-    })
-  });
-  const data = await res.json();
-  return JSON.parse(data.content[0].text.trim());
-}
-
-function signOut() {
-  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
-  accessToken = null;
-  localStorage.removeItem(STORAGE_KEY);
-  location.reload();
-}
-
-</script>
-<style>
-:root {
-  --sophia: #009B8D; --sophia-light: #E6F5F4;
-  --jo: #4A5E3A;     --jo-light: #EEF3E8;
-  --partner: #1A3A5C;--partner-light: #E4EBF5;
-  --family: #8B4513; --family-light: #FDF0E6;
-  --betreuung: #6B4C8B; --betreuung-light: #F0EBF8;
-  --dark: #003C4C;   --mid: #005A6E;
-  --text: #1A2028;   --text-secondary: #5A6470;
-  --border: #E2E8EC; --bg: #F4F7F9; --white: #FFFFFF;
-  --radius: 12px;    --shadow: 0 2px 12px rgba(0,60,76,0.08);
-}
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); max-width: 430px; margin: 0 auto; min-height: 100vh; overflow-x: hidden; }
-
-/* ══ ONBOARDING ══ */
-#onboarding {
-  position: fixed; inset: 0; z-index: 999;
-  background: var(--dark); display: flex; flex-direction: column;
-  align-items: center; justify-content: center; padding: 32px 24px;
-  max-width: 430px; margin: 0 auto;
-}
-.ob-step { display: none; flex-direction: column; align-items: center; text-align: center; width: 100%; }
-.ob-step.active { display: flex; }
-.ob-logo { font-size: 56px; margin-bottom: 20px; }
-.ob-title { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 10px; letter-spacing: -0.5px; }
-.ob-sub { font-size: 15px; color: rgba(255,255,255,0.65); line-height: 1.6; margin-bottom: 36px; }
-.ob-btn {
-  width: 100%; padding: 16px; border-radius: 14px; border: none;
-  font-size: 16px; font-weight: 600; cursor: pointer; font-family: inherit;
-  background: var(--sophia); color: #fff; margin-bottom: 12px;
-  transition: opacity 0.15s;
-}
-.ob-btn:active { opacity: 0.85; }
-.ob-btn-ghost {
-  background: none; border: 1.5px solid rgba(255,255,255,0.25);
-  color: rgba(255,255,255,0.7); font-size: 14px; padding: 12px;
-}
-.ob-dots { display: flex; gap: 6px; margin-top: 28px; }
-.ob-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.25); }
-.ob-dot.active { background: var(--sophia); width: 18px; border-radius: 3px; }
-.ob-upload-area {
-  width: 100%; border: 2px dashed rgba(255,255,255,0.3); border-radius: 14px;
-  padding: 32px 16px; margin-bottom: 20px; cursor: pointer;
-  transition: border-color 0.15s;
-}
-.ob-upload-area:hover { border-color: var(--sophia); }
-.ob-upload-icon { font-size: 36px; margin-bottom: 10px; }
-.ob-upload-label { font-size: 14px; color: rgba(255,255,255,0.7); }
-#timetable-input { display: none; }
-.ob-preview { width: 100%; border-radius: 10px; overflow: hidden; margin-bottom: 16px; max-height: 200px; object-fit: cover; }
-.ob-processing {
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(0,155,141,0.15); border-radius: 10px;
-  padding: 12px 16px; margin-bottom: 16px; width: 100%;
-}
-.ob-processing p { font-size: 13px; color: rgba(255,255,255,0.8); }
-.spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--sophia); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.timetable-result {
-  background: rgba(255,255,255,0.08); border-radius: 10px;
-  padding: 12px 14px; width: 100%; margin-bottom: 16px; text-align: left;
-}
-.timetable-result .day-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.timetable-result .day-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); min-width: 28px; text-transform: uppercase; }
-.timetable-result .subjects { font-size: 12px; color: rgba(255,255,255,0.85); }
-.timetable-result .kit-flag { font-size: 11px; background: rgba(0,155,141,0.2); color: var(--sophia); border-radius: 20px; padding: 1px 7px; margin-left: 4px; }
-
-/* ══ MAIN APP ══ */
-#app { display: none; }
-#app.ready { display: block; }
-
-.topbar { background: var(--dark); padding: 14px 20px 12px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-.topbar-title { font-size: 17px; font-weight: 600; color: #fff; letter-spacing: -0.3px; }
-.topbar-date { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
-.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #aaa; }
-.sync-dot.live { background: var(--sophia); box-shadow: 0 0 0 2px rgba(0,155,141,0.25); }
-.sync-dot.error { background: #e55; }
-.topbar-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--sophia); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; }
-
-.section { display: none; padding: 16px 16px 100px; }
-.section.active { display: block; }
-.section-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.8px; text-transform: uppercase; margin: 20px 0 10px; }
-
-/* Today */
-.today-greeting { background: linear-gradient(135deg, var(--dark) 0%, var(--mid) 100%); border-radius: var(--radius); padding: 18px 20px; color: #fff; margin-bottom: 16px; }
-.today-greeting h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-.today-greeting p { font-size: 13px; color: rgba(255,255,255,0.7); }
-.pickup-banner { background: var(--sophia-light); border: 1.5px solid var(--sophia); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.pickup-banner .icon { font-size: 22px; }
-.pickup-banner p { font-size: 13px; font-weight: 500; color: var(--dark); }
-.pickup-banner span { font-size: 12px; color: var(--text-secondary); }
-.event-card { background: var(--white); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border-left: 3.5px solid var(--sophia); box-shadow: var(--shadow); display: flex; gap: 12px; align-items: flex-start; }
-.event-card.jo { border-left-color: var(--jo); }
-.event-card.partner { border-left-color: var(--partner); }
-.event-card.family { border-left-color: var(--family); }
-.event-card.betreuung { border-left-color: var(--betreuung); }
-.event-time { font-size: 11px; font-weight: 600; color: var(--text-secondary); min-width: 46px; padding-top: 1px; }
-.event-info { flex: 1; }
-.event-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
-.event-meta { font-size: 12px; color: var(--text-secondary); }
-.event-subjects { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
-.event-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; align-self: center; white-space: nowrap; }
-.tag-sophia { background: var(--sophia-light); color: var(--sophia); }
-.tag-jo { background: var(--jo-light); color: var(--jo); }
-.tag-betreuung { background: var(--betreuung-light); color: var(--betreuung); }
-.tag-family { background: var(--family-light); color: var(--family); }
-.kit-pill { display: inline-block; background: #FEF3C7; color: #92400E; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; margin-top: 4px; }
-
-/* Week */
-.week-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.week-nav button { background: var(--white); border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; font-size: 16px; cursor: pointer; color: var(--text); }
-.week-nav-label { font-size: 13px; font-weight: 600; color: var(--text); }
-.day-tabs { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 14px; }
-.day-tab { background: var(--white); border: 1.5px solid var(--border); border-radius: 10px; padding: 7px 2px; text-align: center; cursor: pointer; transition: all 0.15s; }
-.day-tab.active { background: var(--dark); border-color: var(--dark); }
-.day-tab.active .day-name, .day-tab.active .day-num { color: #fff; }
-.day-tab.today { border-color: var(--sophia); }
-.day-tab.today .day-num { color: var(--sophia); }
-.day-name { font-size: 10px; color: var(--text-secondary); font-weight: 500; }
-.day-num { font-size: 15px; font-weight: 600; color: var(--text); }
-.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
-.day-events { display: flex; flex-direction: column; gap: 8px; }
-.day-event-block { background: var(--white); border-radius: 10px; padding: 12px 14px; border-left: 3.5px solid var(--sophia); box-shadow: var(--shadow); }
-.day-event-block.betreuung { border-left-color: var(--betreuung); background: var(--betreuung-light); }
-.day-event-row { display: flex; justify-content: space-between; align-items: center; }
-.day-event-title { font-size: 14px; font-weight: 500; }
-.day-event-time { font-size: 12px; color: var(--text-secondary); }
-.day-event-detail { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-.day-event-subjects { font-size: 12px; color: var(--text-secondary); margin-top: 5px; line-height: 1.5; }
-.day-event-owners { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.owner-chip { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; background: var(--sophia-light); color: var(--sophia); }
-.owner-chip.jo { background: var(--jo-light); color: var(--jo); }
-.owner-chip.partner { background: var(--partner-light); color: var(--partner); }
-.empty-day { text-align: center; padding: 40px 16px; color: var(--text-secondary); font-size: 13px; }
-
-/* Shopping */
-.add-item-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-.add-item-bar input { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--border); font-size: 14px; font-family: inherit; background: var(--white); outline: none; color: var(--text); }
-.add-item-bar input:focus { border-color: var(--sophia); }
-.btn-add { padding: 11px 16px; background: var(--sophia); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
-.shopping-item { background: var(--white); border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); cursor: pointer; transition: opacity 0.2s; }
-.shopping-item.done { opacity: 0.45; }
-.shopping-item.done .item-name { text-decoration: line-through; }
-.item-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.shopping-item.done .item-check { background: var(--sophia); border-color: var(--sophia); color: #fff; }
-.item-name { font-size: 14px; flex: 1; }
-.item-qty { font-size: 12px; font-weight: 600; color: var(--text-secondary); background: var(--bg); padding: 2px 8px; border-radius: 20px; }
-.clear-done { width: 100%; padding: 11px; background: none; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--text-secondary); font-family: inherit; cursor: pointer; margin-top: 8px; }
-
-/* Tasks */
-.task-item { background: var(--white); border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; box-shadow: var(--shadow); cursor: pointer; }
-.task-item.done .task-name { text-decoration: line-through; opacity: 0.5; }
-.task-row { display: flex; align-items: center; gap: 12px; }
-.task-check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.task-item.done .task-check { background: var(--sophia); border-color: var(--sophia); color: #fff; }
-.task-name { font-size: 14px; flex: 1; }
-.task-badges { display: flex; gap: 6px; margin-top: 8px; padding-left: 34px; flex-wrap: wrap; }
-.badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
-.badge-high { background: #FEE2E2; color: #991B1B; }
-.badge-medium { background: #FEF3C7; color: #92400E; }
-.badge-low { background: var(--bg); color: var(--text-secondary); }
-.badge-owner { background: var(--sophia-light); color: var(--sophia); }
-.badge-owner.jo { background: var(--jo-light); color: var(--jo); }
-.badge-owner.partner { background: var(--partner-light); color: var(--partner); }
-
-/* Contacts */
-.contact-card { background: var(--white); border-radius: 10px; padding: 13px 14px; margin-bottom: 8px; border-left: 3.5px solid var(--sophia); box-shadow: var(--shadow); }
-.contact-top { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.contact-avatar { width: 36px; height: 36px; border-radius: 50%; color: #fff; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.contact-name { font-size: 14px; font-weight: 500; color: var(--text); }
-.contact-role { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.contact-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.contact-btn { font-size: 12px; font-weight: 500; padding: 5px 10px; background: var(--bg); border-radius: 8px; color: var(--dark); text-decoration: none; border: 1px solid var(--border); }
-.contact-btn-empty { font-size: 12px; color: var(--text-secondary); font-style: italic; padding: 5px 0; }
-
-/* Bottom nav */
-.bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--white); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav-btn { flex: 1; padding: 10px 4px 8px; font-size: 10px; font-weight: 500; color: var(--text-secondary); border: none; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.bottom-nav-btn .bnav-icon { font-size: 20px; }
-.bottom-nav-btn.active { color: var(--sophia); }
-
-.topbar-gear { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; opacity: 0.7; }
-.topbar-gear:hover { opacity: 1; }
-
-/* ══ SETTINGS MODAL ══ */
-.settings-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-  z-index: 500; display: none; align-items: flex-end;
-  max-width: 430px; margin: 0 auto;
-}
-.settings-overlay.open { display: flex; }
-.settings-sheet {
-  background: var(--white); border-radius: 20px 20px 0 0;
-  width: 100%; max-height: 90vh; overflow-y: auto;
-  padding: 0 0 40px; position: relative; z-index: 501;
-}
-.settings-handle {
-  width: 36px; height: 4px; background: var(--border);
-  border-radius: 2px; margin: 12px auto 0;
-}
-.settings-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 16px 20px 8px;
-}
-.settings-title { font-size: 17px; font-weight: 600; color: var(--text); }
-.settings-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-secondary); }
-.settings-section { padding: 16px 20px 0; }
-.settings-section-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 12px; }
-.settings-card { background: var(--bg); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
-.settings-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 13px 16px; border-bottom: 1px solid var(--border);
-  cursor: pointer;
-}
-.settings-row:last-child { border-bottom: none; }
-.settings-row-icon { font-size: 20px; flex-shrink: 0; }
-.settings-row-info { flex: 1; }
-.settings-row-title { font-size: 14px; font-weight: 500; color: var(--text); }
-.settings-row-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.settings-row-arrow { color: var(--text-secondary); font-size: 16px; }
-
-/* Timetable editor */
-.tt-editor { padding: 16px 20px; }
-.tt-day-card { background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
-.tt-day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.tt-day-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.tt-day-validity { font-size: 11px; color: var(--text-secondary); }
-.tt-subjects { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); outline: none; }
-.tt-subjects:focus { border-color: var(--sophia); }
-.tt-kit-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.tt-kit-chip {
-  font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 20px;
-  border: 1.5px solid var(--border); cursor: pointer; background: var(--white);
-  color: var(--text-secondary); transition: all 0.15s;
-}
-.tt-kit-chip.active { background: #FEF3C7; border-color: #D97706; color: #92400E; }
-.tt-save-btn {
-  width: 100%; padding: 13px; background: var(--sophia); color: #fff;
-  border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
-  cursor: pointer; font-family: inherit; margin-top: 4px;
-}
-.tt-validity-row { display: flex; gap: 8px; margin-top: 10px; }
-.tt-validity-row input { flex: 1; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--white); outline: none; }
-.tt-validity-row input:focus { border-color: var(--sophia); }
-.tt-validity-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
-
-/* Upload area in settings */
-.settings-upload {
-  border: 2px dashed var(--border); border-radius: 10px;
-  padding: 20px; text-align: center; cursor: pointer; margin: 12px 20px 0;
-  transition: border-color 0.15s;
-}
-.settings-upload:hover { border-color: var(--sophia); }
-.settings-upload-icon { font-size: 28px; margin-bottom: 6px; }
-.settings-upload-label { font-size: 13px; color: var(--text-secondary); }
-
-</style>
-</head>
-<body>
-
-<!-- ══ ONBOARDING ══ -->
-<div id="onboarding">
-  <!-- Step 1: Welcome -->
-  <div class="ob-step active" id="ob-step-1">
-    <div class="ob-logo">🏠</div>
-    <div class="ob-title">Welcome home</div>
-    <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
-    <button class="ob-btn" onclick="startSignIn()">Sign in with Google</button>
-    <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
-  </div>
-  <!-- Step 2: Connecting -->
-  <div class="ob-step" id="ob-step-2">
-    <div class="ob-logo">📊</div>
-    <div class="ob-title">Connecting…</div>
-    <div class="ob-sub">Signing in and loading your family sheet.</div>
-    <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:20px auto"></div>
-    <div class="ob-dots"><div class="ob-dot"></div><div class="ob-dot active"></div></div>
-  </div>
-</div>
-
-<!-- ══ MAIN APP ══ -->
-<div id="app">
-
-  <div class="topbar">
-    <div>
-      <div class="topbar-title">🏠 Home</div>
-      <div class="topbar-date" id="topbar-date"></div>
-    </div>
-    <div class="topbar-right">
-      <div class="sync-dot" id="sync-dot" title="Sync status"></div>
-      <button class="topbar-gear" onclick="openSettings()" title="Settings">⚙️</button>
-      <div class="topbar-avatar">J</div>
-    </div>
-  </div>
-
-  <!-- TODAY -->
-  <div class="section active" id="sec-today">
-    <div class="today-greeting">
-      <h2 id="greeting">Good morning</h2>
-      <p id="greeting-sub">Here's what's on today</p>
-    </div>
-    <div class="pickup-banner" id="pickup-banner" style="display:none">
-      <div class="icon">🎒</div>
-      <div><p id="pickup-text">Pickup reminder</p><span id="pickup-sub"></span></div>
-    </div>
-    <div class="section-label">Today</div>
-    <div id="today-events"></div>
-    <div class="section-label">Later this week</div>
-    <div id="upcoming-events"></div>
-  </div>
-
-  <!-- WEEK -->
-  <div class="section" id="sec-week">
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--sophia)"></div>Sophia</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--jo)"></div>Jo</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--partner)"></div>Partner</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--betreuung)"></div>Betreuung</div>
-    </div>
-    <div class="week-nav">
-      <button onclick="changeWeek(-1)">‹</button>
-      <div class="week-nav-label" id="week-label">This week</div>
-      <button onclick="changeWeek(1)">›</button>
-    </div>
-    <div class="day-tabs" id="day-tabs"></div>
-    <div class="day-events" id="day-events"></div>
-  </div>
-
-  <!-- SHOPPING -->
-  <div class="section" id="sec-shopping">
-    <div class="add-item-bar">
-      <input id="new-item" type="text" placeholder="Add item…" onkeydown="if(event.key==='Enter')addItem()">
-      <button class="btn-add" onclick="addItem()">Add</button>
-    </div>
-    <div class="section-label">To buy</div>
-    <div id="shopping-list"></div>
-    <button class="clear-done" onclick="clearDone()">Clear bought items</button>
-  </div>
-
-  <!-- TASKS -->
-  <div class="section" id="sec-tasks">
-    <div class="section-label">This week</div>
-    <div id="task-list"></div>
-  </div>
-
-  <!-- CONTACTS -->
-  <div class="section" id="sec-contacts">
-    <div class="section-label">Sophia — School & Activities</div>
-    <div id="contacts-sophia"></div>
-    <div class="section-label" style="margin-top:24px">Household</div>
-    <div id="contacts-household"></div>
-    <div class="section-label" style="margin-top:24px">Emergency</div>
-    <div id="contacts-emergency"></div>
-  </div>
-
-  <!-- Bottom nav -->
-  <div class="bottom-nav">
-    <button class="bottom-nav-btn active" onclick="switchTab('today')" id="bnav-today"><span class="bnav-icon">☀️</span>Today</button>
-    <button class="bottom-nav-btn" onclick="switchTab('week')" id="bnav-week"><span class="bnav-icon">📅</span>Week</button>
-    <button class="bottom-nav-btn" onclick="switchTab('shopping')" id="bnav-shopping"><span class="bnav-icon">🛒</span>Shopping</button>
-    <button class="bottom-nav-btn" onclick="switchTab('tasks')" id="bnav-tasks"><span class="bnav-icon">✅</span>Tasks</button>
-    <button class="bottom-nav-btn" onclick="switchTab('contacts')" id="bnav-contacts"><span class="bnav-icon">📞</span>Contacts</button>
-  </div>
-
-</div>
-
-<script>
-// ═══════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════
-const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
-const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
-const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
-const ANTHROPIC_KEY = ''; // Paste your Anthropic API key here for timetable reading
-
-let accessToken = null;
-const STORAGE_KEY = 'familyapp_v1';
-const APP_VERSION = '1.3.3';
-const now = new Date();
-
-// ── Version-based cache bust ──
-(function() {
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  if (stored.version && stored.version !== APP_VERSION) {
-    // New version detected — clear cache but preserve auth token and timetable
-    const keep = { version: APP_VERSION, setupDone: stored.setupDone, timetable: stored.timetable };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
-    if (!sessionStorage.getItem('reloaded_' + APP_VERSION)) {
-      sessionStorage.setItem('reloaded_' + APP_VERSION, '1');
-      location.reload();
-    }
-  } else if (!stored.version) {
-    stored.version = APP_VERSION;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  }
-})();
 
 // ═══════════════════════════════════
-// INIT — check if already set up
+// EVENT EDITOR
 // ═══════════════════════════════════
-function init() {
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  if (saved.setupDone) {
-    showApp();
-    silentSignIn();
+let editingDay = null;
+let editingIdx = null; // null = new event
+
+function openEventEditor(dayIdx, evIdx) {
+  editingDay = dayIdx;
+  editingIdx = evIdx;
+  const isNew = evIdx === null;
+  const dayNames = ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+  document.getElementById('event-editor-title').textContent = isNew ? `Add activity — ${dayNames[dayIdx]}` : 'Edit activity';
+  document.getElementById('btn-delete-event').style.display = isNew ? 'none' : 'block';
+
+  if (!isNew) {
+    const ev = weekData[dayIdx][evIdx];
+    const timeParts = (ev.time||'').split('–');
+    document.getElementById('ev-title').value = ev.title || '';
+    document.getElementById('ev-start').value = timeParts[0] ? timeParts[0].trim() : '';
+    document.getElementById('ev-end').value = timeParts[1] ? timeParts[1].trim() : '';
+    // Split detail into location and notes
+    const detailParts = (ev.detail||'').split(' · ');
+    document.getElementById('ev-location').value = detailParts[0] || '';
+    document.getElementById('ev-notes').value = detailParts[1] || '';
+    document.getElementById('ev-drop').value = ev.drop || '';
+    document.getElementById('ev-pick').value = ev.pick || '';
+    // Set type
+    document.querySelectorAll('.type-chip').forEach(c => {
+      c.classList.remove('active');
+      if (c.dataset.type === ev.type) c.classList.add('active');
+    });
   } else {
-    document.getElementById('onboarding').style.display = 'flex';
-  }
-}
-window.addEventListener('load', init);
-
-// ═══════════════════════════════════
-// DATA (must be before all functions)
-// ═══════════════════════════════════
-const timetable = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').timetable || {
-  mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
-  tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:[]},
-  wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-  thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
-  fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
-};
-
-const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
-
-const weekData = {
-  1:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Jo'}],
-  2:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon · Lunch included',type:'betreuung',drop:'',pick:'Partner'}],
-  3:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Jo'},{title:'Swimming',time:'16:00–17:00',detail:'Hallenbad City · Swim kit needed',type:'school',drop:'Jo',pick:'Jo'}],
-  4:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon',type:'betreuung',drop:'',pick:'Jo'},{title:'Dentist — Sophia',time:'10:00–11:00',detail:'Dr. Meier, Zürich',type:'family',drop:'',pick:''}],
-  5:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Partner'}],
-  6:[{title:'Family time',time:'Morning',detail:'',type:'family',drop:'',pick:''}],
-  7:[{title:"Pack Sophia's bag",time:'Evening',detail:'Ready for Monday',type:'jo-event',drop:'',pick:''}]
-};
-
-const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-
-// ═══════════════════════════════════
-// ONBOARDING
-// ═══════════════════════════════════
-function goToStep(n) {
-  document.querySelectorAll('.ob-step').forEach(s => s.classList.remove('active'));
-  document.getElementById('ob-step-' + n).classList.add('active');
-}
-
-function startSignIn() {
-  goToStep(2);
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    callback: (response) => {
-      if (response.error) { goToStep(1); return; }
-      accessToken = response.access_token;
-      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')
-      s.token = accessToken;
-      s.setupDone = true;
-      s.version = APP_VERSION;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-      document.getElementById('onboarding').style.display = 'none';
-      showApp();
-      loadAllSheets();
-    }
-  });
-  client.requestAccessToken();
-}
-
-function silentSignIn() {
-  // Attempt token refresh silently on subsequent loads
-  try {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      prompt: '',
-      callback: (response) => {
-        if (!response.error) {
-          accessToken = response.access_token;
-          setSyncLive();
-          loadAllSheets();
-        } else {
-          setSyncError();
-        }
-      }
-    });
-    client.requestAccessToken();
-  } catch(e) { setSyncError(); }
-}
-
-// ── Timetable upload ──
-let timetableData = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').timetable || {};
-
-function handleTimetableUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async (ev) => {
-    const base64 = ev.target.result.split(',')[1];
-    const preview = document.getElementById('timetable-preview');
-    preview.src = ev.target.result;
-    preview.style.display = 'block';
-    document.getElementById('upload-area').style.display = 'none';
-    document.getElementById('ob-processing').style.display = 'flex';
-    document.getElementById('timetable-result').innerHTML = '';
-
-    try {
-      const result = await readTimetableWithClaude(base64);
-      timetableData = result;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({...JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'), timetable: result}));
-      showTimetableResult(result);
-    } catch(err) {
-      document.getElementById('ob-processing').style.display = 'none';
-      document.getElementById('timetable-result').innerHTML = `<div style="color:rgba(255,255,255,0.6);font-size:13px">Could not read timetable automatically — you can add it manually later.</div>`;
-    }
-    document.getElementById('ob-finish-btn').style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-}
-
-async function readTimetableWithClaude(base64) {
-  if (!ANTHROPIC_KEY) {
-    // Return dummy parsed data if no key set
-    return {
-      mon: {subjects: ['Deutsch', 'Mathe', 'Turnen'], kit: ['🎽 PE kit']},
-      tue: {subjects: ['Sachkunde', 'Deutsch', 'Kunst'], kit: []},
-      wed: {subjects: ['Mathe', 'Musik', 'Deutsch'], kit: []},
-      thu: {subjects: ['Turnen', 'Sachkunde', 'Englisch'], kit: ['🎽 PE kit']},
-      fri: {subjects: ['Deutsch', 'Mathe', 'Werken'], kit: []}
-    };
-  }
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-opus-4-6',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: base64}},
-          {type: 'text', text: `This is a primary school timetable. Extract the subjects for each weekday (Monday to Friday).
-Return ONLY valid JSON in this exact format, no other text:
-{"mon":{"subjects":["Subject1","Subject2"],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}}
-For the kit array, add "🎽 PE kit" if Turnen/Sport/PE appears that day. Add "🎨 Art apron" if Kunst/Werken appears. Add "🎸 Instrument" if Musik appears and it's likely instrument day.`}
-        ]
-      }]
-    })
-  });
-  const data = await res.json();
-  const text = data.content[0].text.trim();
-  return JSON.parse(text);
-}
-
-function showTimetableResult(data) {
-  document.getElementById('ob-processing').style.display = 'none';
-  const dayLabels = {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri'};
-  let html = '<div class="timetable-result">';
-  Object.entries(dayLabels).forEach(([k, label]) => {
-    const d = data[k] || {subjects:[], kit:[]};
-    html += `<div class="day-row">
-      <span class="day-label">${label}</span>
-      <span class="subjects">${d.subjects.join(' · ')}
-        ${d.kit.map(k => `<span class="kit-flag">${k}</span>`).join('')}
-      </span>
-    </div>`;
-  });
-  html += '</div>';
-  document.getElementById('timetable-result').innerHTML = html;
-}
-
-function finishOnboarding_unused() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    ...JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'),
-    setupDone: true,
-    timetable: timetableData
-  }));
-  document.getElementById('onboarding').style.display = 'none';
-  showApp();
-  if (accessToken) { setSyncLive(); loadAllSheets(); }
-}
-
-function showApp() {
-  document.getElementById('app').classList.add('ready');
-  initApp();
-}
-
-// ═══════════════════════════════════
-// APP INIT
-// ═══════════════════════════════════
-
-function initApp() {
-  const hour = now.getHours();
-  document.getElementById('greeting').textContent = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('topbar-date').textContent = now.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'});
-  renderToday();
-  renderWeek();
-  renderShopping();
-  renderTasks();
-  renderContacts();
-}
-
-// ═══════════════════════════════════
-// SYNC INDICATOR
-// ═══════════════════════════════════
-function setSyncLive() { const d = document.getElementById('sync-dot'); if(d){d.className='sync-dot live';} }
-function setSyncError() { const d = document.getElementById('sync-dot'); if(d){d.className='sync-dot error';} }
-
-// ═══════════════════════════════════
-// SHEETS API
-// ═══════════════════════════════════
-async function sheetsGet(range) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) throw new Error(res.status);
-  return (await res.json()).values || [];
-}
-async function sheetsAppend(range, values) {
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`, {
-    method:'POST', headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
-    body: JSON.stringify({values})
-  });
-}
-async function sheetsUpdate(range, values) {
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, {
-    method:'PUT', headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
-    body: JSON.stringify({values})
-  });
-}
-
-async function loadAllSheets() {
-  try {
-    await Promise.all([loadRecurring(), loadShopping(), loadTasks(), loadContacts()]);
-    setSyncLive();
-    renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts();
-  } catch(e) { setSyncError(); console.error(e); }
-}
-
-async function loadRecurring() {
-  const rows = await sheetsGet("'🔁 Recurring'!A4:S100");
-  for (let d=1;d<=7;d++) weekData[d]=[];
-  const jsToIdx = {1:1,2:2,3:3,4:4,5:5,6:6,0:7};
-  rows.filter(r=>r[0]&&r[0].trim()).forEach(r => {
-    const ev = {
-      title:r[0]||'', person:r[1]||'', type:r[2]||'',
-      mon:r[3]==='✓',tue:r[4]==='✓',wed:r[5]==='✓',thu:r[6]==='✓',fri:r[7]==='✓',sat:r[8]==='✓',sun:r[9]==='✓',
-      startTime:r[10]||'', endTime:r[11]||'', location:r[15]||'', drop:r[16]||'', pick:r[17]||'', notes:r[18]||''
-    };
-    [{js:1,idx:1,flag:'mon'},{js:2,idx:2,flag:'tue'},{js:3,idx:3,flag:'wed'},{js:4,idx:4,flag:'thu'},{js:5,idx:5,flag:'fri'},{js:6,idx:6,flag:'sat'},{js:0,idx:7,flag:'sun'}]
-    .forEach(({idx,flag}) => {
-      if(ev[flag]) weekData[idx].push({
-        title:ev.title,
-        time:ev.startTime+(ev.endTime?'–'+ev.endTime:''),
-        detail:ev.location+(ev.notes?' · '+ev.notes:''),
-        type:ev.type==='Betreuung'?'betreuung':ev.type==='School'?'school':'jo-event',
-        drop:ev.drop, pick:ev.pick
-      });
-    });
-  });
-}
-
-async function loadShopping() {
-  const rows = await sheetsGet("'🛒 Shopping'!A4:G200");
-  shopping = rows.filter(r=>r[1]).map((r,i)=>({id:i+1,done:r[0]==='✓',name:r[1]||'',qty:r[3]||'1x',by:r[4]||'',rowNum:i+4}));
-  nextId = shopping.length+1;
-}
-
-async function loadTasks() {
-  const rows = await sheetsGet("'✅ Tasks'!A4:H200");
-  tasks = rows.filter(r=>r[0]).map((r,i)=>({id:i+1,name:r[0],owner:r[1]||'',due:r[2]||'',done:r[3]==='Done',priority:r[4]||'Medium',recurring:r[5]==='Yes',rowNum:i+4}));
-}
-
-async function loadContacts() {
-  const rows = await sheetsGet("'🎒 Sophia'!A4:F15");
-  if(rows.length) contactsData.sophia = rows.filter(r=>r[0]).map(r=>({name:r[0],role:r[1]||'',phone:r[2]||'',email:r[3]||'',note:r[5]||''}));
-}
-
-// ═══════════════════════════════════
-// DATA
-// ═══════════════════════════════════
-// ═══════════════════════════════════
-// TODAY VIEW
-// ═══════════════════════════════════
-function renderToday() {
-  const jsDay = now.getDay();
-  const idx = jsDay === 0 ? 7 : jsDay;
-  const todayKey = dayKeyMap[jsDay];
-  const todayTT = timetable[todayKey] || {subjects:[], kit:[]};
-  const todayEvents = weekData[idx] || [];
-
-  // Pickup banner
-  const schoolEv = todayEvents.find(e => e.type==='school' && e.pick);
-  if (schoolEv) {
-    document.getElementById('pickup-banner').style.display = 'flex';
-    document.getElementById('pickup-text').textContent = `${schoolEv.pick} picks up Sophia`;
-    document.getElementById('pickup-sub').textContent = schoolEv.detail + (todayTT.kit.length ? ' · ' + todayTT.kit.join(', ') : '');
+    document.getElementById('ev-title').value = '';
+    document.getElementById('ev-start').value = '';
+    document.getElementById('ev-end').value = '';
+    document.getElementById('ev-location').value = '';
+    document.getElementById('ev-notes').value = '';
+    document.getElementById('ev-drop').value = '';
+    document.getElementById('ev-pick').value = '';
+    document.querySelectorAll('.type-chip').forEach((c,i) => c.classList.toggle('active', i===0));
   }
 
-  const todayEl = document.getElementById('today-events');
-  todayEl.innerHTML = '';
-  if (!todayEvents.length) {
-    todayEl.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;padding:12px 0">Nothing scheduled today 🌿</div>';
+  document.getElementById('event-editor-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('ev-title').focus(), 300);
+}
+
+function closeEventEditor() {
+  document.getElementById('event-editor-overlay').classList.remove('open');
+}
+
+function selectType(el) {
+  document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function getSelectedType() {
+  const active = document.querySelector('.type-chip.active');
+  return active ? active.dataset.type : 'school';
+}
+
+function saveEvent() {
+  const title = document.getElementById('ev-title').value.trim();
+  if (!title) { document.getElementById('ev-title').focus(); return; }
+
+  const start = document.getElementById('ev-start').value;
+  const end = document.getElementById('ev-end').value;
+  const location = document.getElementById('ev-location').value.trim();
+  const notes = document.getElementById('ev-notes').value.trim();
+  const drop = document.getElementById('ev-drop').value.trim();
+  const pick = document.getElementById('ev-pick').value.trim();
+  const type = getSelectedType();
+
+  const time = start ? (end ? `${start}–${end}` : start) : '';
+  const detail = [location, notes].filter(Boolean).join(' · ');
+
+  const ev = { title, time, detail, type, drop, pick };
+
+  if (!weekData[editingDay]) weekData[editingDay] = [];
+
+  if (editingIdx === null) {
+    weekData[editingDay].push(ev);
   } else {
-    todayEvents.forEach(ev => {
-      const card = document.createElement('div');
-      card.className = 'event-card ' + (ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
-      const subjectLine = ev.type==='school' && todayTT.subjects.length
-        ? `<div class="event-subjects">📚 ${todayTT.subjects.join(' · ')}${todayTT.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>` : '';
-      card.innerHTML = `
-        <div class="event-time">${ev.time.split('–')[0]||ev.time}</div>
-        <div class="event-info">
-          <div class="event-title">${ev.title}</div>
-          <div class="event-meta">${ev.detail}</div>
-          ${subjectLine}
-        </div>
-        <div class="event-tag tag-${ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':'sophia'}">${ev.type==='betreuung'||ev.type==='school'||ev.type==='family'?'Sophia':'Jo'}</div>
-      `;
-      todayEl.appendChild(card);
-    });
+    weekData[editingDay][editingIdx] = ev;
   }
 
-  // Upcoming: next 2 days with events
-  const upcomingEl = document.getElementById('upcoming-events');
-  upcomingEl.innerHTML = '';
-  let count = 0;
-  for (let offset=1; offset<=6 && count<3; offset++) {
-    const nextIdx = ((idx-1+offset)%7)+1;
-    const evs = weekData[nextIdx]||[];
-    evs.slice(0,1).forEach(ev => {
-      if(count>=3) return;
-      const d = new Date(now); d.setDate(d.getDate()+offset);
-      const card = document.createElement('div');
-      card.className = 'event-card ' + (ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
-      card.innerHTML = `
-        <div class="event-time">${d.toLocaleDateString('en-GB',{weekday:'short'})}</div>
-        <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail}</div></div>`;
-      upcomingEl.appendChild(card);
-      count++;
-    });
-  }
-}
-
-// ═══════════════════════════════════
-// WEEK VIEW
-// ═══════════════════════════════════
-let weekOffset = 0;
-let selectedDay = now.getDay()===0?7:now.getDay();
-
-function getWeekStart(offset) {
-  const d = new Date(now);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
-  d.setHours(0,0,0,0);
-  return d;
-}
-
-function changeWeek(dir) { weekOffset+=dir; renderWeek(); }
-
-function renderWeek() {
-  const ws = getWeekStart(weekOffset);
-  document.getElementById('week-label').textContent = weekOffset===0?'This week':weekOffset===1?'Next week':weekOffset===-1?'Last week':ws.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  const tabs = document.getElementById('day-tabs');
-  tabs.innerHTML = '';
-  for(let i=0;i<7;i++){
-    const d=new Date(ws); d.setDate(ws.getDate()+i);
-    const idx=i===6?7:i+1;
-    const btn=document.createElement('div');
-    btn.className='day-tab'+(idx===selectedDay?' active':'')+(d.toDateString()===now.toDateString()?' today':'');
-    btn.innerHTML=`<div class="day-name">${days7[d.getDay()]}</div><div class="day-num">${d.getDate()}</div>`;
-    btn.onclick=()=>{selectedDay=idx;renderWeek();};
-    tabs.appendChild(btn);
-  }
-
-  // Get timetable for selected day
-  const jsDay = selectedDay===7?0:selectedDay;
-  const ttKey = dayKeyMap[jsDay];
-  const tt = timetable[ttKey]||{subjects:[],kit:[]};
-
-  const eventsEl=document.getElementById('day-events');
-  eventsEl.innerHTML='';
-  const events=weekData[selectedDay]||[];
-  if(!events.length){eventsEl.innerHTML='<div class="empty-day">🌿 Nothing scheduled</div>';}
-  events.forEach(ev=>{
-    const div=document.createElement('div');
-    div.className='day-event-block'+(ev.type==='betreuung'?' betreuung':'');
-    if(ev.type==='family') div.style.borderLeftColor='var(--family)';
-    if(ev.type==='jo-event') div.style.borderLeftColor='var(--jo)';
-    const subjectLine = ev.type==='school'&&tt.subjects.length
-      ? `<div class="day-event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>` : '';
-    div.innerHTML=`
-      <div class="day-event-row"><div class="day-event-title">${ev.title}</div><div class="day-event-time">${ev.time}</div></div>
-      <div class="day-event-detail">${ev.detail}</div>
-      ${subjectLine}
-      ${ev.drop||ev.pick?`<div class="day-event-owners">
-        ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop: ${ev.drop}</span>`:''}
-        ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick: ${ev.pick}</span>`:''}
-      </div>`:''}
-    `;
-    eventsEl.appendChild(div);
-  });
-}
-
-// ═══════════════════════════════════
-// SHOPPING
-// ═══════════════════════════════════
-let shopping=[
-  {id:1,name:'Milk',qty:'2x',done:false,by:'Jo',rowNum:4},
-  {id:2,name:'Bread',qty:'1x',done:false,by:'Partner',rowNum:5},
-  {id:3,name:'Washing powder',qty:'1x',done:false,by:'Jo',rowNum:6},
-  {id:4,name:'Apples',qty:'6x',done:true,by:'Jo',rowNum:7},
-  {id:5,name:'Yoghurt',qty:'4x',done:false,by:'Partner',rowNum:8},
-  {id:6,name:'Sophia — new goggles',qty:'1x',done:false,by:'Jo',rowNum:9},
-];
-let nextId=7;
-
-function renderShopping(){
-  const el=document.getElementById('shopping-list');
-  el.innerHTML='';
-  shopping.forEach(item=>{
-    const div=document.createElement('div');
-    div.className='shopping-item'+(item.done?' done':'');
-    div.innerHTML=`<div class="item-check">${item.done?'✓':''}</div><div class="item-name">${item.name}</div><div class="item-qty">${item.qty}</div>`;
-    div.onclick=()=>{item.done=!item.done;renderShopping();if(accessToken)sheetsUpdate(`'🛒 Shopping'!A${item.rowNum}`,[[item.done?'✓':'']]).catch(()=>{});};
-    el.appendChild(div);
-  });
-}
-
-function addItem(){
-  const input=document.getElementById('new-item');
-  const val=input.value.trim(); if(!val)return;
-  const item={id:nextId++,name:val,qty:'1x',done:false,by:'App',rowNum:shopping.length+4};
-  shopping.unshift(item); input.value=''; renderShopping();
-  if(accessToken){const today=now.toISOString().split('T')[0];sheetsAppend("'🛒 Shopping'!A:G",[['',val,'Groceries','1','App',today,'']]).catch(()=>{});}
-}
-
-function clearDone(){shopping=shopping.filter(i=>!i.done);renderShopping();}
-
-// ═══════════════════════════════════
-// TASKS
-// ═══════════════════════════════════
-let tasks=[
-  {id:1,name:"Pack Sophia's school bag",owner:'Partner',due:'Every Sunday',priority:'High',recurring:true,done:false},
-  {id:2,name:'Take out recycling',owner:'Jo',due:'Every Tuesday',priority:'Medium',recurring:true,done:false},
-  {id:3,name:'Clean bathroom',owner:'Both',due:'Saturday',priority:'Medium',recurring:true,done:true},
-  {id:4,name:'Book dentist — Sophia',owner:'Jo',due:'1 Oct',priority:'High',recurring:false,done:false},
-  {id:5,name:'Renew parking permit',owner:'Partner',due:'1 Nov',priority:'Low',recurring:false,done:false},
-];
-
-function renderTasks(){
-  const el=document.getElementById('task-list');
-  el.innerHTML='';
-  tasks.forEach(task=>{
-    const div=document.createElement('div');
-    div.className='task-item'+(task.done?' done':'');
-    const oc=task.owner==='Jo'?'jo':task.owner==='Partner'?'partner':'';
-    const pc=task.priority==='High'?'badge-high':task.priority==='Medium'?'badge-medium':'badge-low';
-    div.innerHTML=`<div class="task-row"><div class="task-check">${task.done?'✓':''}</div><div class="task-name">${task.name}</div></div>
-      <div class="task-badges"><span class="badge ${pc}">${task.priority}</span><span class="badge badge-owner ${oc}">${task.owner}</span><span class="badge" style="background:var(--bg);color:var(--text-secondary)">📅 ${task.due}</span>${task.recurring?'<span class="badge" style="background:var(--sophia-light);color:var(--sophia)">🔁</span>':''}</div>`;
-    div.onclick=()=>{task.done=!task.done;renderTasks();};
-    el.appendChild(div);
-  });
-}
-
-// ═══════════════════════════════════
-// CONTACTS
-// ═══════════════════════════════════
-const contactsData={
-  sophia:[
-    {name:'Class Teacher',role:'Primarschule Wiedikon',phone:'',email:'',note:''},
-    {name:'School Office',role:'Primarschule Wiedikon',phone:'',email:'sekretariat@ps-wiedikon.ch',note:''},
-    {name:'Hort Contact',role:'Hort Wiedikon',phone:'',email:'',note:'Tue & Thu'},
-    {name:'Swimming Coach',role:'Hallenbad City',phone:'',email:'',note:'Wed 16:00'},
-    {name:'Paediatrician',role:'Dr. Müller',phone:'044 XXX XX XX',email:'',note:''},
-    {name:'Dentist',role:'Dr. Meier',phone:'044 XXX XX XX',email:'',note:''},
-  ],
-  household:[
-    {name:'Landlord / Verwaltung',role:'Property management',phone:'',email:'',note:''},
-    {name:'Heizung AG',role:'Boiler service',phone:'',email:'',note:'Annual contract'},
-    {name:'Electrician',role:'',phone:'',email:'',note:''},
-    {name:'Hauswartin',role:'Building manager',phone:'',email:'',note:''},
-  ],
-  emergency:[
-    {name:'Police',role:'',phone:'117',email:'',note:''},
-    {name:'Fire',role:'',phone:'118',email:'',note:''},
-    {name:'Ambulance',role:'',phone:'144',email:'',note:''},
-    {name:'Emergency doctor',role:'Ärztefon',phone:'0800 33 66 55',email:'',note:'24h'},
-    {name:'Tox Info',role:'Poison control',phone:'145',email:'',note:'24h'},
-  ]
-};
-
-function renderContacts(){
-  renderContactGroup('contacts-sophia',contactsData.sophia,'var(--sophia)');
-  renderContactGroup('contacts-household',contactsData.household,'var(--jo)');
-  renderContactGroup('contacts-emergency',contactsData.emergency,'var(--family)');
-}
-
-function renderContactGroup(elId,data,accent){
-  const el=document.getElementById(elId);
-  el.innerHTML='';
-  data.forEach(c=>{
-    const div=document.createElement('div');
-    div.className='contact-card';
-    div.style.borderLeftColor=accent;
-    div.innerHTML=`<div class="contact-top"><div class="contact-avatar" style="background:${accent}">${c.name.charAt(0)}</div>
-      <div class="contact-info"><div class="contact-name">${c.name}</div><div class="contact-role">${c.role}${c.note?' · '+c.note:''}</div></div></div>
-      <div class="contact-actions">
-        ${c.phone?`<a class="contact-btn" href="tel:${c.phone}">📞 ${c.phone}</a>`:''}
-        ${c.email?`<a class="contact-btn" href="mailto:${c.email}">✉️ ${c.email}</a>`:''}
-        ${!c.phone&&!c.email?'<span class="contact-btn-empty">No details yet</span>':''}
-      </div>`;
-    el.appendChild(div);
-  });
-}
-
-// ═══════════════════════════════════
-// NAV
-// ═══════════════════════════════════
-function switchTab(tab){
-  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('sec-'+tab).classList.add('active');
-  document.getElementById('bnav-'+tab).classList.add('active');
-}
-
-// ═══════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════
-function openSettings() {
-  document.getElementById('settings-overlay').classList.add('open');
-  document.getElementById('tt-editor-wrap').style.display = 'none';
-  updateTTStatus();
-}
-function closeSettings() {
-  document.getElementById('settings-overlay').classList.remove('open');
-}
-
-function updateTTStatus() {
-  const keys = Object.keys(timetable);
-  const hasData = keys.some(k => timetable[k] && timetable[k].subjects && timetable[k].subjects.length);
-  const el = document.getElementById('tt-status');
-  if (el) el.textContent = hasData ? 'Last updated · tap to edit' : 'Tap to add subjects per day';
-}
-
-
-function showTimetableEditor() {
-  const wrap = document.getElementById('tt-editor-wrap');
-  const editor = document.getElementById('tt-editor');
-  wrap.style.display = 'block';
-  editor.innerHTML = '';
-
-  // Validity period
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const validFrom = _s.ttValidFrom || '';
-  const validTo = _s.ttValidTo || '';
-
-  let html = `<div style="margin-bottom:14px">
-    <div class="tt-validity-label">Timetable valid period (optional)</div>
-    <div class="tt-validity-row">
-      <input type="date" id="tt-valid-from" value="${validFrom}" placeholder="From">
-      <input type="date" id="tt-valid-to" value="${validTo}" placeholder="Until">
-    </div>
-  </div>`;
-
-  WEEK_DAYS.forEach(({key, label}) => {
-    const d = timetable[key] || {subjects:[], kit:[]};
-    const subjectsStr = d.subjects.join(', ');
-    const kitActive = d.kit || [];
-    const kitChips = KIT_OPTIONS.map(k =>
-      `<span class="tt-kit-chip ${kitActive.includes(k)?'active':''}" onclick="toggleKit(this,'${key}','${k}')">${k}</span>`
-    ).join('');
-    html += `<div class="tt-day-card">
-      <div class="tt-day-header">
-        <span class="tt-day-name">${label}</span>
-      </div>
-      <input class="tt-subjects" id="tt-${key}" value="${subjectsStr}" placeholder="e.g. Deutsch, Mathe, Turnen">
-      <div class="tt-kit-row" id="tt-kit-${key}">${kitChips}</div>
-    </div>`;
-  });
-
-  editor.innerHTML = html;
-  // Scroll to editor
-  wrap.scrollIntoView({behavior:'smooth'});
-}
-
-function toggleKit(el, dayKey, kit) {
-  el.classList.toggle('active');
-}
-
-function saveTimetable() {
-  WEEK_DAYS.forEach(({key}) => {
-    const subjectsInput = document.getElementById('tt-'+key);
-    const subjects = subjectsInput ? subjectsInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    const kitChips = document.querySelectorAll(`#tt-kit-${key} .tt-kit-chip.active`);
-    const kit = Array.from(kitChips).map(c => c.textContent.trim());
-    timetable[key] = {subjects, kit};
-  });
-
-  const validFrom = document.getElementById('tt-valid-from')?.value || '';
-  const validTo = document.getElementById('tt-valid-to')?.value || '';
-
-  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable, ttValidFrom: validFrom, ttValidTo: validTo}));
-
-  document.getElementById('tt-editor-wrap').style.display = 'none';
-  updateTTStatus();
-  renderToday();
+  saveWeekDataToStorage();
+  closeEventEditor();
   renderWeek();
-
-  // Brief confirmation
-  const btn = document.querySelector('.tt-save-btn');
-  if(btn){btn.textContent='✓ Saved!'; setTimeout(()=>btn.textContent='Save timetable',1500);}
+  renderToday();
 }
 
-function handleTimetableUpload(e) {
-  const file = e.target.files[0]; if(!file) return;
-  document.getElementById('settings-processing').style.display = 'block';
-  const reader = new FileReader();
-  reader.onload = async (ev) => {
-    const base64 = ev.target.result.split(',')[1];
-    try {
-      const result = await readTimetableWithClaude(base64);
-      Object.assign(timetable, result);
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable}));
-      document.getElementById('settings-processing').style.display = 'none';
-      showTimetableEditor();
-      renderToday(); renderWeek();
-    } catch(err) {
-      document.getElementById('settings-processing').style.display = 'none';
-      alert('Could not read timetable automatically — please edit manually.');
-      showTimetableEditor();
-    }
-  };
-  reader.readAsDataURL(file);
+function deleteEvent() {
+  if (editingIdx === null) return;
+  if (!confirm('Delete this activity?')) return;
+  weekData[editingDay].splice(editingIdx, 1);
+  saveWeekDataToStorage();
+  closeEventEditor();
+  renderWeek();
+  renderToday();
 }
 
-function handlePDFUpload(e) {
-  const file = e.target.files[0]; if(!file) return;
-  alert('PDF uploaded — AI reading of PDFs coming soon. For now, please enter the schedule manually.');
-}
-
-async function readTimetableWithClaude(base64) {
-  if(!ANTHROPIC_KEY) {
-    return {
-      mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
-      tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
-      wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-      thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
-      fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
-    };
-  }
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-    body: JSON.stringify({
-      model:'claude-sonnet-4-20250514', max_tokens:1024,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
-        {type:'text',text:`This is a primary school timetable. Extract subjects per weekday. Return ONLY JSON:
-{"mon":{"subjects":["Subject1"],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}}
-Add "🎽 PE kit" in kit if Turnen/Sport/PE that day. Add "🎨 Art apron" if Kunst/Werken. Add "🎸 Instrument" if Musik (instrument day).`}
-      ]}]
-    })
-  });
-  const data = await res.json();
-  return JSON.parse(data.content[0].text.trim());
-}
-
-function signOut() {
-  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
-  accessToken = null;
-  localStorage.removeItem(STORAGE_KEY);
-  location.reload();
+function saveWeekDataToStorage() {
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  s.weekData = weekData;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
 
 </script>
@@ -1336,7 +203,66 @@ function signOut() {
     </div>
 
     <!-- App version -->
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.4.0</div>
+  </div>
+</div>
+
+
+<!-- ══ EVENT EDITOR MODAL ══ -->
+<div class="event-editor-overlay" id="event-editor-overlay" onclick="if(event.target===this)closeEventEditor()">
+  <div class="event-editor-sheet">
+    <div class="event-editor-handle"></div>
+    <div class="event-editor-header">
+      <div class="event-editor-title" id="event-editor-title">Edit activity</div>
+      <button class="event-editor-close" onclick="closeEventEditor()">✕</button>
+    </div>
+    <div class="event-editor-body">
+      <div class="field-group">
+        <div class="field-label">Activity name</div>
+        <input class="field-input" id="ev-title" type="text" placeholder="e.g. Swimming">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Start time</div>
+          <input class="field-input" id="ev-start" type="time">
+        </div>
+        <div class="field-group">
+          <div class="field-label">End time</div>
+          <input class="field-input" id="ev-end" type="time">
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Location</div>
+        <input class="field-input" id="ev-location" type="text" placeholder="e.g. Hallenbad City">
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Drop-off</div>
+          <input class="field-input" id="ev-drop" type="text" placeholder="e.g. Jo">
+        </div>
+        <div class="field-group">
+          <div class="field-label">Pick-up</div>
+          <input class="field-input" id="ev-pick" type="text" placeholder="e.g. Partner">
+        </div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Notes</div>
+        <input class="field-input" id="ev-notes" type="text" placeholder="e.g. Bring swim kit">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Type</div>
+        <div class="event-type-row" id="ev-type-row">
+          <span class="type-chip active" data-type="school" onclick="selectType(this)">🎒 School</span>
+          <span class="type-chip betreuung" data-type="betreuung" onclick="selectType(this)">🏠 Betreuung</span>
+          <span class="type-chip family" data-type="family" onclick="selectType(this)">👨‍👩‍👧 Family</span>
+          <span class="type-chip jo" data-type="jo-event" onclick="selectType(this)">💼 Work</span>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button class="btn-save" onclick="saveEvent()">Save</button>
+        <button class="btn-delete" id="btn-delete-event" onclick="deleteEvent()">Delete</button>
+      </div>
+    </div>
   </div>
 </div>
 
