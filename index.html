@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.5.4 -->
+<!-- Family Home App v1.5.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -59,6 +59,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .sync-dot.error{background:#e55}
 .topbar-avatar{width:34px;height:34px;border-radius:50%;background:var(--sophia);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff}
 .topbar-gear{background:none;border:none;font-size:20px;cursor:pointer;padding:4px;opacity:0.7;color:#fff}
+.topbar-sync{font-size:10px;color:rgba(255,255,255,0.4);margin-top:1px}
 .topbar-gear:hover{opacity:1}
 
 /* NAV */
@@ -263,6 +264,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .sophia-view .sophia-total{font-size:40px;font-weight:700;color:#fff;margin:12px 0 8px}
 .sophia-view p{font-size:13px;color:rgba(255,255,255,0.8)}
 
+
+/* PULL TO REFRESH */
+.pull-indicator {
+  text-align: center; padding: 12px; font-size: 12px;
+  color: var(--text-secondary); display: none;
+  transition: all 0.2s;
+}
+.pull-indicator.visible { display: block; }
+
 </style>
 </head>
 <body>
@@ -276,7 +286,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.5.4</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.5.6</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -294,6 +304,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div>
       <div class="topbar-title">🏠 FiApp</div>
       <div class="topbar-date" id="topbar-date"></div>
+      <div class="topbar-sync" id="topbar-sync"></div>
     </div>
     <div class="topbar-right">
       <div class="sync-dot" id="sync-dot"></div>
@@ -304,6 +315,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 
   <!-- TODAY -->
   <div class="section active" id="sec-today">
+    <div class="pull-indicator" id="pull-indicator">↓ Syncing…</div>
     <div class="today-greeting">
       <h2 id="greeting">Good morning</h2>
       <p id="greeting-sub">Here's what's on today</p>
@@ -495,7 +507,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.5.4</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.5.6</div>
   </div>
 </div>
 
@@ -579,7 +591,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.5.4';
+const APP_VERSION = '1.5.6';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -708,10 +720,56 @@ function signOut() {
 function showApp() {
   document.getElementById('app').classList.add('ready');
   initApp();
+  startAutoSync();
 }
 
-function setSyncLive() { const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live'; }
-function setSyncError() { const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error'; }
+let syncInterval = null;
+
+function startAutoSync() {
+  // Option B: poll every 60 seconds
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = setInterval(() => {
+    if (accessToken && document.visibilityState === 'visible') {
+      silentRefresh();
+    }
+  }, 60000);
+
+  // Option C: refresh when app comes back into focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && accessToken) {
+      silentRefresh();
+    }
+  });
+}
+
+let lastRefresh = 0;
+function silentRefresh() {
+  // Throttle: don't refresh more than once every 15 seconds
+  const now = Date.now();
+  if (now - lastRefresh < 15000) return;
+  lastRefresh = now;
+  showSyncPulse();
+  loadAllSheets().catch(() => setSyncError());
+}
+
+function showSyncPulse() {
+  const dot = document.getElementById('sync-dot');
+  if (dot) {
+    dot.style.opacity = '0.4';
+    setTimeout(() => { dot.style.opacity = '1'; }, 600);
+  }
+}
+
+function setSyncLive() {
+  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live';
+  const t=document.getElementById('topbar-sync');
+  if(t) t.textContent='Synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function setSyncError() {
+  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error';
+  const t=document.getElementById('topbar-sync');
+  if(t) t.textContent='Sync failed ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
 
 // ═══════════════════════════════════
 // APP INIT
