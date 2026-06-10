@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.4 -->
+<!-- Family Home App v1.7.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -35,7 +35,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 #onboarding{position:fixed;inset:0;z-index:999;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;max-width:430px;margin:0 auto}
 .ob-step{display:none;flex-direction:column;align-items:center;text-align:center;width:100%}
 .ob-step.active{display:flex}
-.ob-logo{font-size:56px;margin-bottom:20px}
+.ob-logo{margin-bottom:20px}
 .ob-title{font-size:26px;font-weight:700;color:#fff;margin-bottom:10px;letter-spacing:-0.5px}
 .ob-sub{font-size:15px;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:36px}
 .ob-btn{width:100%;padding:16px;border-radius:14px;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;background:var(--sophia);color:#fff;margin-bottom:12px}
@@ -384,11 +384,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 <!-- ONBOARDING -->
 <div id="onboarding">
   <div class="ob-step active" id="ob-step-1">
-    <div class="ob-logo">🏠</div>
-    <div class="ob-title">Welcome home</div>
-    <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
+    <div class="ob-logo" style="font-size:80px;line-height:1;margin-bottom:16px">☀️</div>
+    <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
+    <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.4</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.5</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -609,7 +609,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.4</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.5</div>
   </div>
 </div>
 
@@ -740,10 +740,63 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.4';
+const APP_VERSION = '1.7.5';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
+
+// ═══════════════════════════════════
+// EMOJI + ICON SYSTEM
+// ═══════════════════════════════════
+const EMOJI_LIST = ['🎒','🏫','📚','✏️','🎨','🎭','🎬','🎵','🎸','🎹','🎺','🎻','🏊','🏋️','⚽','🏀','🎾','🏸','🤸','🚴','🧘','🎯','🎪','🏖','🌳','🏥','🦷','💉','🎂','🎁','🎉','🎈','🛒','🍕','🍎','☕','🚗','✈️','👨‍👩‍👧','👧','👦','🐾','🌟','⭐','💫','❤️','🏠','💼'];
+
+const AUTO_ICONS = {
+  swim:'🏊',pool:'🏊',schwimm:'🏊',
+  school:'🎒',schule:'🎒',hort:'🏠',betreuung:'🏠',
+  sport:'🏋️',turnen:'🤸',gym:'🏋️',
+  music:'🎵',musik:'🎵',piano:'🎹',guitar:'🎸',
+  art:'🎨',kunst:'🎨',
+  birthday:'🎂',geburtstag:'🎂',
+  doctor:'🏥',arzt:'🏥',dentist:'🦷',zahnarzt:'🦷',
+  football:'⚽',soccer:'⚽',basketball:'🏀',tennis:'🎾',
+  family:'👨‍👩‍👧',park:'🌳',shopping:'🛒',
+};
+
+function autoIconFor(title) {
+  if (!title) return null;
+  const lower = title.toLowerCase();
+  for (const [key, emoji] of Object.entries(AUTO_ICONS)) {
+    if (lower.includes(key)) return emoji;
+  }
+  return null;
+}
+
+function autoIcon(title) { const icon = autoIconFor(title); if (icon) setEventIcon(icon); }
+
+function setEventIcon(emoji) {
+  const el = document.getElementById('ev-icon-display');
+  if (el) el.textContent = emoji;
+  document.querySelectorAll('.emoji-opt').forEach(e => e.classList.toggle('selected', e.dataset.emoji === emoji));
+}
+
+function getEventIcon() {
+  const el = document.getElementById('ev-icon-display');
+  return el ? el.textContent.trim() : '';
+}
+
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  if (!picker) return;
+  if (!picker.children.length) {
+    EMOJI_LIST.forEach(em => {
+      const span = document.createElement('span');
+      span.className = 'emoji-opt'; span.dataset.emoji = em; span.textContent = em;
+      span.onclick = () => { setEventIcon(em); picker.classList.remove('open'); };
+      picker.appendChild(span);
+    });
+  }
+  picker.classList.toggle('open');
+}
 
 let accessToken = null;
 
@@ -1100,9 +1153,12 @@ async function loadAppData() {
 async function saveAppData() {
   if (!accessToken) return;
   try {
+    // Normalise weekData keys to numbers before saving
+    const normWeekData = {};
+    for(let k in weekData) normWeekData[parseInt(k)||k] = weekData[k];
     const state = {
       version: APP_VERSION,
-      weekData: weekData,
+      weekData: normWeekData,
       shopping: shopping,
       tasks: tasks,
       contacts: contactsData,
@@ -1118,7 +1174,11 @@ async function saveAppData() {
 
 function applyAppState(remote) {
   if (!remote) return;
-  if (remote.weekData) { for(let k in remote.weekData) weekData[k]=remote.weekData[k]; }
+  if (remote.weekData) {
+    // Clear all keys first, then rebuild with numeric keys
+    for(let k in weekData) delete weekData[k];
+    for(let k in remote.weekData) weekData[parseInt(k)||k] = remote.weekData[k];
+  }
   if (remote.shopping) { shopping.length=0; remote.shopping.forEach(s=>shopping.push(s)); nextId=shopping.length+1; }
   if (remote.tasks) { tasks.length=0; remote.tasks.forEach(t=>tasks.push(t)); }
   if (remote.contacts) { for(let k in remote.contacts) contactsData[k]=remote.contacts[k]; }
@@ -1216,7 +1276,7 @@ function renderToday() {
       const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
       const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
       card.innerHTML=`<div class="event-time">${(ev.time||'').split('–')[0]||ev.time}</div>
-        <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail}</div>${subjectLine}</div>
+        <div class="event-info"><div class="event-title">${ev.icon||autoIconFor(ev.title)?`<span style='margin-right:4px'>${ev.icon||autoIconFor(ev.title)}</span>`:''  }${ev.title}</div><div class="event-meta">${ev.detail||''}</div>${subjectLine}</div>
 `;
       todayEl.appendChild(card);
     });
@@ -1233,7 +1293,7 @@ function renderToday() {
       const card=document.createElement('div');
       card.className='event-card '+(ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
       card.innerHTML=`<div class="event-time">${d.toLocaleDateString('en-GB',{weekday:'short'})}</div>
-        <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div></div>`;
+        <div class="event-info"><div class="event-title">${ev.icon||autoIconFor(ev.title)?`<span style='margin-right:4px'>${ev.icon||autoIconFor(ev.title)}</span>`:'' }${ev.title}</div><div class="event-meta">${ev.detail||''}</div></div>`;
       upcomingEl.appendChild(card);count++;
     });
   }
@@ -1468,14 +1528,6 @@ function selectType(el){
   }
 }
 
-function autoIconFor(title) {
-  if (!title) return null;
-  const lower = title.toLowerCase();
-  for (const [key, emoji] of Object.entries(AUTO_ICONS)) {
-    if (lower.includes(key)) return emoji;
-  }
-  return null;
-}
 
 function saveEvent(){
   const title=document.getElementById('ev-title').value.trim();
@@ -2035,87 +2087,6 @@ function toggleSophiaView() {
   const v = document.getElementById('sophia-view');
   v.classList.toggle('open');
   document.querySelector('.sophia-view-btn').textContent = v.classList.contains('open') ? '✕ Close Sophia\'s view' : '👧 Sophia\'s view';
-}
-
-// ═══════════════════════════════════
-// EMOJI + ICON SYSTEM
-// ═══════════════════════════════════
-const EMOJI_LIST = ['🎒','🏫','📚','✏️','🎨','🎭','🎬','🎵','🎸','🎹','🎺','🎻','🏊','🏋️','⚽','🏀','🎾','🏸','🤸','🚴','🧘','🎯','🎪','🏖','🌳','🏥','🦷','💉','🎂','🎁','🎉','🎈','🛒','🍕','🍎','☕','🚗','✈️','👨‍👩‍👧','👧','👦','🐾','🌟','⭐','💫','❤️','🏠','💼'];
-
-const AUTO_ICONS = {
-  swim:'🏊',pool:'🏊',schwimm:'🏊',
-  school:'🎒',schule:'🎒',hort:'🏠',betreuung:'🏠',
-  sport:'🏋️',turnen:'🤸',gym:'🏋️',
-  music:'🎵',musik:'🎵',piano:'🎹',guitar:'🎸',
-  art:'🎨',kunst:'🎨',
-  birthday:'🎂',geburtstag:'🎂',
-  doctor:'🏥',arzt:'🏥',dentist:'🦷',zahnarzt:'🦷',
-  football:'⚽',soccer:'⚽',basketball:'🏀',tennis:'🎾',
-  family:'👨‍👩‍👧',park:'🌳',
-  shopping:'🛒',
-};
-
-function autoIconFor(title) {
-  if (!title) return null;
-  const lower = title.toLowerCase();
-  for (const [key, emoji] of Object.entries(AUTO_ICONS)) {
-    if (lower.includes(key)) return emoji;
-  }
-  return null;
-}
-
-function autoIcon(title) {
-  const icon = autoIconFor(title);
-  if (icon) setEventIcon(icon);
-}
-
-function setEventIcon(emoji) {
-  const el = document.getElementById('ev-icon-display');
-  if (el) el.textContent = emoji;
-  document.querySelectorAll('.emoji-opt').forEach(e => {
-    e.classList.toggle('selected', e.dataset.emoji === emoji);
-  });
-}
-
-function getEventIcon() {
-  const el = document.getElementById('ev-icon-display');
-  return el ? el.textContent.trim() : '';
-}
-
-function toggleEmojiPicker() {
-  const picker = document.getElementById('emoji-picker');
-  if (!picker) return;
-  if (!picker.children.length) {
-    EMOJI_LIST.forEach(em => {
-      const span = document.createElement('span');
-      span.className = 'emoji-opt';
-      span.dataset.emoji = em;
-      span.textContent = em;
-      span.onclick = () => { setEventIcon(em); picker.classList.remove('open'); };
-      picker.appendChild(span);
-    });
-  }
-  picker.classList.toggle('open');
-}
-
-
-// ═══════════════════════════════════
-// RECURRING OPTIONS
-// ═══════════════════════════════════
-function toggleRecurringOptions() {
-  const isRecurring = document.querySelector('input[name="ev-recur-radio"]:checked')?.value === 'recurring';
-  const opts = document.getElementById('ev-recurring-opts');
-  if (opts) opts.style.display = isRecurring ? 'block' : 'none';
-}
-
-function selectFreq(el) {
-  document.querySelectorAll('#ev-freq-row .type-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-}
-
-function getFrequency() {
-  const el = document.querySelector('#ev-freq-row .type-chip.active');
-  return el ? el.dataset.freq : 'weekly';
 }
 
 // ═══════════════════════════════════
