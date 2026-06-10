@@ -8,7 +8,167 @@
 <meta name="theme-color" content="#003C4C">
 <title>Home</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer>
+// ═══════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+  document.getElementById('tt-editor-wrap').style.display = 'none';
+  updateTTStatus();
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function updateTTStatus() {
+  const keys = Object.keys(timetable);
+  const hasData = keys.some(k => timetable[k] && timetable[k].subjects && timetable[k].subjects.length);
+  const el = document.getElementById('tt-status');
+  if (el) el.textContent = hasData ? 'Last updated · tap to edit' : 'Tap to add subjects per day';
+}
+
+const KIT_OPTIONS = ['🎽 PE kit', '🎨 Art apron', '🎸 Instrument', '🏊 Swim kit', '📐 Geometry set'];
+const WEEK_DAYS = [
+  {key:'mon', label:'Monday'},
+  {key:'tue', label:'Tuesday'},
+  {key:'wed', label:'Wednesday'},
+  {key:'thu', label:'Thursday'},
+  {key:'fri', label:'Friday'},
+];
+
+function showTimetableEditor() {
+  const wrap = document.getElementById('tt-editor-wrap');
+  const editor = document.getElementById('tt-editor');
+  wrap.style.display = 'block';
+  editor.innerHTML = '';
+
+  // Validity period
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const validFrom = saved.ttValidFrom || '';
+  const validTo = saved.ttValidTo || '';
+
+  let html = `<div style="margin-bottom:14px">
+    <div class="tt-validity-label">Timetable valid period (optional)</div>
+    <div class="tt-validity-row">
+      <input type="date" id="tt-valid-from" value="${validFrom}" placeholder="From">
+      <input type="date" id="tt-valid-to" value="${validTo}" placeholder="Until">
+    </div>
+  </div>`;
+
+  WEEK_DAYS.forEach(({key, label}) => {
+    const d = timetable[key] || {subjects:[], kit:[]};
+    const subjectsStr = d.subjects.join(', ');
+    const kitActive = d.kit || [];
+    const kitChips = KIT_OPTIONS.map(k =>
+      `<span class="tt-kit-chip ${kitActive.includes(k)?'active':''}" onclick="toggleKit(this,'${key}','${k}')">${k}</span>`
+    ).join('');
+    html += `<div class="tt-day-card">
+      <div class="tt-day-header">
+        <span class="tt-day-name">${label}</span>
+      </div>
+      <input class="tt-subjects" id="tt-${key}" value="${subjectsStr}" placeholder="e.g. Deutsch, Mathe, Turnen">
+      <div class="tt-kit-row" id="tt-kit-${key}">${kitChips}</div>
+    </div>`;
+  });
+
+  editor.innerHTML = html;
+  // Scroll to editor
+  wrap.scrollIntoView({behavior:'smooth'});
+}
+
+function toggleKit(el, dayKey, kit) {
+  el.classList.toggle('active');
+}
+
+function saveTimetable() {
+  WEEK_DAYS.forEach(({key}) => {
+    const subjectsInput = document.getElementById('tt-'+key);
+    const subjects = subjectsInput ? subjectsInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    const kitChips = document.querySelectorAll(`#tt-kit-${key} .tt-kit-chip.active`);
+    const kit = Array.from(kitChips).map(c => c.textContent.trim());
+    timetable[key] = {subjects, kit};
+  });
+
+  const validFrom = document.getElementById('tt-valid-from')?.value || '';
+  const validTo = document.getElementById('tt-valid-to')?.value || '';
+
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable, ttValidFrom: validFrom, ttValidTo: validTo}));
+
+  document.getElementById('tt-editor-wrap').style.display = 'none';
+  updateTTStatus();
+  renderToday();
+  renderWeek();
+
+  // Brief confirmation
+  const btn = document.querySelector('.tt-save-btn');
+  if(btn){btn.textContent='✓ Saved!'; setTimeout(()=>btn.textContent='Save timetable',1500);}
+}
+
+function handleTimetableUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  document.getElementById('settings-processing').style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    try {
+      const result = await readTimetableWithClaude(base64);
+      Object.assign(timetable, result);
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable}));
+      document.getElementById('settings-processing').style.display = 'none';
+      showTimetableEditor();
+      renderToday(); renderWeek();
+    } catch(err) {
+      document.getElementById('settings-processing').style.display = 'none';
+      alert('Could not read timetable automatically — please edit manually.');
+      showTimetableEditor();
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function handlePDFUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  alert('PDF uploaded — AI reading of PDFs coming soon. For now, please enter the schedule manually.');
+}
+
+async function readTimetableWithClaude(base64) {
+  if(!ANTHROPIC_KEY) {
+    return {
+      mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
+      tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
+      wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
+      thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
+      fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
+    };
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:1024,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
+        {type:'text',text:`This is a primary school timetable. Extract subjects per weekday. Return ONLY JSON:
+{"mon":{"subjects":["Subject1"],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}}
+Add "🎽 PE kit" in kit if Turnen/Sport/PE that day. Add "🎨 Art apron" if Kunst/Werken. Add "🎸 Instrument" if Musik (instrument day).`}
+      ]}]
+    })
+  });
+  const data = await res.json();
+  return JSON.parse(data.content[0].text.trim());
+}
+
+function signOut() {
+  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
+  accessToken = null;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+</script>
 <style>
 :root {
   --sophia: #009B8D; --sophia-light: #E6F5F4;
@@ -193,63 +353,104 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .bottom-nav-btn { flex: 1; padding: 10px 4px 8px; font-size: 10px; font-weight: 500; color: var(--text-secondary); border: none; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .bottom-nav-btn .bnav-icon { font-size: 20px; }
 .bottom-nav-btn.active { color: var(--sophia); }
+
+.topbar-gear { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; opacity: 0.7; }
+.topbar-gear:hover { opacity: 1; }
+
+/* ══ SETTINGS MODAL ══ */
+.settings-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 200; display: none; align-items: flex-end;
+  max-width: 430px; margin: 0 auto;
+}
+.settings-overlay.open { display: flex; }
+.settings-sheet {
+  background: var(--white); border-radius: 20px 20px 0 0;
+  width: 100%; max-height: 90vh; overflow-y: auto;
+  padding: 0 0 40px;
+}
+.settings-handle {
+  width: 36px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 12px auto 0;
+}
+.settings-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px 8px;
+}
+.settings-title { font-size: 17px; font-weight: 600; color: var(--text); }
+.settings-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-secondary); }
+.settings-section { padding: 16px 20px 0; }
+.settings-section-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 12px; }
+.settings-card { background: var(--bg); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+.settings-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px; border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row-icon { font-size: 20px; flex-shrink: 0; }
+.settings-row-info { flex: 1; }
+.settings-row-title { font-size: 14px; font-weight: 500; color: var(--text); }
+.settings-row-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.settings-row-arrow { color: var(--text-secondary); font-size: 16px; }
+
+/* Timetable editor */
+.tt-editor { padding: 16px 20px; }
+.tt-day-card { background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.tt-day-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.tt-day-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.tt-day-validity { font-size: 11px; color: var(--text-secondary); }
+.tt-subjects { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; color: var(--text); background: var(--white); outline: none; }
+.tt-subjects:focus { border-color: var(--sophia); }
+.tt-kit-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.tt-kit-chip {
+  font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid var(--border); cursor: pointer; background: var(--white);
+  color: var(--text-secondary); transition: all 0.15s;
+}
+.tt-kit-chip.active { background: #FEF3C7; border-color: #D97706; color: #92400E; }
+.tt-save-btn {
+  width: 100%; padding: 13px; background: var(--sophia); color: #fff;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit; margin-top: 4px;
+}
+.tt-validity-row { display: flex; gap: 8px; margin-top: 10px; }
+.tt-validity-row input { flex: 1; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit; color: var(--text); background: var(--white); outline: none; }
+.tt-validity-row input:focus { border-color: var(--sophia); }
+.tt-validity-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+
+/* Upload area in settings */
+.settings-upload {
+  border: 2px dashed var(--border); border-radius: 10px;
+  padding: 20px; text-align: center; cursor: pointer; margin: 12px 20px 0;
+  transition: border-color 0.15s;
+}
+.settings-upload:hover { border-color: var(--sophia); }
+.settings-upload-icon { font-size: 28px; margin-bottom: 6px; }
+.settings-upload-label { font-size: 13px; color: var(--text-secondary); }
+
 </style>
 </head>
 <body>
 
 <!-- ══ ONBOARDING ══ -->
 <div id="onboarding">
-
-  <!-- Step 1: Welcome + Sign in -->
+  <!-- Step 1: Welcome -->
   <div class="ob-step active" id="ob-step-1">
     <div class="ob-logo">🏠</div>
     <div class="ob-title">Welcome home</div>
-    <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place. Let's get set up in two steps.</div>
+    <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" onclick="startSignIn()">Sign in with Google</button>
-    <div class="ob-dots">
-      <div class="ob-dot active"></div>
-      <div class="ob-dot"></div>
-      <div class="ob-dot"></div>
-    </div>
+    <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
-
   <!-- Step 2: Connecting -->
   <div class="ob-step" id="ob-step-2">
     <div class="ob-logo">📊</div>
     <div class="ob-title">Connecting…</div>
-    <div class="ob-sub">Signing in to Google and loading your family sheet.</div>
+    <div class="ob-sub">Signing in and loading your family sheet.</div>
     <div class="spinner" style="width:36px;height:36px;border-width:3px;margin:20px auto"></div>
-    <div class="ob-dots">
-      <div class="ob-dot"></div>
-      <div class="ob-dot active"></div>
-      <div class="ob-dot"></div>
-    </div>
+    <div class="ob-dots"><div class="ob-dot"></div><div class="ob-dot active"></div></div>
   </div>
-
-  <!-- Step 3: Timetable upload -->
-  <div class="ob-step" id="ob-step-3">
-    <div class="ob-title" style="margin-bottom:8px">Sophia's timetable</div>
-    <div class="ob-sub" style="margin-bottom:20px">Take a photo of her school timetable. We'll read the subjects and flag PE days automatically.</div>
-    <div id="upload-area" class="ob-upload-area" onclick="document.getElementById('timetable-input').click()">
-      <div class="ob-upload-icon">📸</div>
-      <div class="ob-upload-label">Tap to take a photo or choose from camera roll</div>
-    </div>
-    <input type="file" id="timetable-input" accept="image/*" capture="environment" onchange="handleTimetableUpload(event)">
-    <img id="timetable-preview" class="ob-preview" style="display:none">
-    <div id="ob-processing" class="ob-processing" style="display:none">
-      <div class="spinner"></div>
-      <p>Reading timetable with AI…</p>
-    </div>
-    <div id="timetable-result"></div>
-    <button class="ob-btn" id="ob-finish-btn" onclick="finishOnboarding()" style="display:none">Let's go →</button>
-    <button class="ob-btn ob-btn-ghost" onclick="finishOnboarding()">Skip for now</button>
-    <div class="ob-dots">
-      <div class="ob-dot"></div>
-      <div class="ob-dot"></div>
-      <div class="ob-dot active"></div>
-    </div>
-  </div>
-
 </div>
 
 <!-- ══ MAIN APP ══ -->
@@ -262,6 +463,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
     </div>
     <div class="topbar-right">
       <div class="sync-dot" id="sync-dot" title="Sync status"></div>
+      <button class="topbar-gear" onclick="openSettings()" title="Settings">⚙️</button>
       <div class="topbar-avatar">J</div>
     </div>
   </div>
@@ -489,7 +691,7 @@ function showTimetableResult(data) {
   document.getElementById('timetable-result').innerHTML = html;
 }
 
-function finishOnboarding() {
+function finishOnboarding_unused() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     ...JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'),
     setupDone: true,
@@ -864,6 +1066,254 @@ function switchTab(tab){
   document.getElementById('sec-'+tab).classList.add('active');
   document.getElementById('bnav-'+tab).classList.add('active');
 }
+
+// ═══════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+  document.getElementById('tt-editor-wrap').style.display = 'none';
+  updateTTStatus();
+}
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function updateTTStatus() {
+  const keys = Object.keys(timetable);
+  const hasData = keys.some(k => timetable[k] && timetable[k].subjects && timetable[k].subjects.length);
+  const el = document.getElementById('tt-status');
+  if (el) el.textContent = hasData ? 'Last updated · tap to edit' : 'Tap to add subjects per day';
+}
+
+const KIT_OPTIONS = ['🎽 PE kit', '🎨 Art apron', '🎸 Instrument', '🏊 Swim kit', '📐 Geometry set'];
+const WEEK_DAYS = [
+  {key:'mon', label:'Monday'},
+  {key:'tue', label:'Tuesday'},
+  {key:'wed', label:'Wednesday'},
+  {key:'thu', label:'Thursday'},
+  {key:'fri', label:'Friday'},
+];
+
+function showTimetableEditor() {
+  const wrap = document.getElementById('tt-editor-wrap');
+  const editor = document.getElementById('tt-editor');
+  wrap.style.display = 'block';
+  editor.innerHTML = '';
+
+  // Validity period
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const validFrom = saved.ttValidFrom || '';
+  const validTo = saved.ttValidTo || '';
+
+  let html = `<div style="margin-bottom:14px">
+    <div class="tt-validity-label">Timetable valid period (optional)</div>
+    <div class="tt-validity-row">
+      <input type="date" id="tt-valid-from" value="${validFrom}" placeholder="From">
+      <input type="date" id="tt-valid-to" value="${validTo}" placeholder="Until">
+    </div>
+  </div>`;
+
+  WEEK_DAYS.forEach(({key, label}) => {
+    const d = timetable[key] || {subjects:[], kit:[]};
+    const subjectsStr = d.subjects.join(', ');
+    const kitActive = d.kit || [];
+    const kitChips = KIT_OPTIONS.map(k =>
+      `<span class="tt-kit-chip ${kitActive.includes(k)?'active':''}" onclick="toggleKit(this,'${key}','${k}')">${k}</span>`
+    ).join('');
+    html += `<div class="tt-day-card">
+      <div class="tt-day-header">
+        <span class="tt-day-name">${label}</span>
+      </div>
+      <input class="tt-subjects" id="tt-${key}" value="${subjectsStr}" placeholder="e.g. Deutsch, Mathe, Turnen">
+      <div class="tt-kit-row" id="tt-kit-${key}">${kitChips}</div>
+    </div>`;
+  });
+
+  editor.innerHTML = html;
+  // Scroll to editor
+  wrap.scrollIntoView({behavior:'smooth'});
+}
+
+function toggleKit(el, dayKey, kit) {
+  el.classList.toggle('active');
+}
+
+function saveTimetable() {
+  WEEK_DAYS.forEach(({key}) => {
+    const subjectsInput = document.getElementById('tt-'+key);
+    const subjects = subjectsInput ? subjectsInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    const kitChips = document.querySelectorAll(`#tt-kit-${key} .tt-kit-chip.active`);
+    const kit = Array.from(kitChips).map(c => c.textContent.trim());
+    timetable[key] = {subjects, kit};
+  });
+
+  const validFrom = document.getElementById('tt-valid-from')?.value || '';
+  const validTo = document.getElementById('tt-valid-to')?.value || '';
+
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable, ttValidFrom: validFrom, ttValidTo: validTo}));
+
+  document.getElementById('tt-editor-wrap').style.display = 'none';
+  updateTTStatus();
+  renderToday();
+  renderWeek();
+
+  // Brief confirmation
+  const btn = document.querySelector('.tt-save-btn');
+  if(btn){btn.textContent='✓ Saved!'; setTimeout(()=>btn.textContent='Save timetable',1500);}
+}
+
+function handleTimetableUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  document.getElementById('settings-processing').style.display = 'block';
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    try {
+      const result = await readTimetableWithClaude(base64);
+      Object.assign(timetable, result);
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({...stored, timetable}));
+      document.getElementById('settings-processing').style.display = 'none';
+      showTimetableEditor();
+      renderToday(); renderWeek();
+    } catch(err) {
+      document.getElementById('settings-processing').style.display = 'none';
+      alert('Could not read timetable automatically — please edit manually.');
+      showTimetableEditor();
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function handlePDFUpload(e) {
+  const file = e.target.files[0]; if(!file) return;
+  alert('PDF uploaded — AI reading of PDFs coming soon. For now, please enter the schedule manually.');
+}
+
+async function readTimetableWithClaude(base64) {
+  if(!ANTHROPIC_KEY) {
+    return {
+      mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
+      tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
+      wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
+      thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
+      fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
+    };
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:1024,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
+        {type:'text',text:`This is a primary school timetable. Extract subjects per weekday. Return ONLY JSON:
+{"mon":{"subjects":["Subject1"],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}}
+Add "🎽 PE kit" in kit if Turnen/Sport/PE that day. Add "🎨 Art apron" if Kunst/Werken. Add "🎸 Instrument" if Musik (instrument day).`}
+      ]}]
+    })
+  });
+  const data = await res.json();
+  return JSON.parse(data.content[0].text.trim());
+}
+
+function signOut() {
+  if(accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
+  accessToken = null;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
 </script>
+
+<!-- ══ SETTINGS MODAL ══ -->
+<div class="settings-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-sheet" id="settings-sheet">
+    <div class="settings-handle"></div>
+    <div class="settings-header">
+      <div class="settings-title">Settings</div>
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+
+    <!-- Timetable section -->
+    <div class="settings-section">
+      <div class="settings-section-label">Sophia's Timetable</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="showTimetableEditor()">
+          <div class="settings-row-icon">✏️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Edit timetable manually</div>
+            <div class="settings-row-sub" id="tt-status">Tap to add or edit subjects per day</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" onclick="document.getElementById('tt-upload-input').click()">
+          <div class="settings-row-icon">📸</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Upload timetable image</div>
+            <div class="settings-row-sub">Photo of printed timetable — AI reads it</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" onclick="document.getElementById('tt-pdf-input').click()">
+          <div class="settings-row-icon">📄</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Upload activity schedule (PDF)</div>
+            <div class="settings-row-sub">Swim course, school calendar etc</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+      <input type="file" id="tt-upload-input" accept="image/*" capture="environment" style="display:none" onchange="handleTimetableUpload(event)">
+      <input type="file" id="tt-pdf-input" accept="application/pdf" style="display:none" onchange="handlePDFUpload(event)">
+    </div>
+
+    <!-- Timetable editor (hidden by default) -->
+    <div id="tt-editor-wrap" style="display:none">
+      <div class="tt-editor" id="tt-editor"></div>
+      <div style="padding:0 20px">
+        <button class="tt-save-btn" onclick="saveTimetable()">Save timetable</button>
+      </div>
+    </div>
+
+    <!-- Upload processing -->
+    <div id="settings-processing" style="display:none;padding:16px 20px">
+      <div class="ob-processing" style="background:var(--sophia-light)">
+        <div class="spinner"></div>
+        <p style="color:var(--dark)">Reading with AI…</p>
+      </div>
+    </div>
+
+    <!-- Account section -->
+    <div class="settings-section" style="margin-top:8px">
+      <div class="settings-section-label">Account</div>
+      <div class="settings-card">
+        <div class="settings-row">
+          <div class="settings-row-icon">📊</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Google Sheets</div>
+            <div class="settings-row-sub" id="sheet-status">Connected</div>
+          </div>
+          <div class="sync-dot live" style="margin-right:4px"></div>
+        </div>
+        <div class="settings-row" onclick="if(confirm('Sign out?')){signOut()}">
+          <div class="settings-row-icon">🚪</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Sign out</div>
+            <div class="settings-row-sub">josdigitalassistant@gmail.com</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- App version -->
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.0</div>
+  </div>
+</div>
+
 </body>
 </html>
+
+
