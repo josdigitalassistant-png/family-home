@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.5.6 -->
+<!-- Family Home App v1.6.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -286,7 +286,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.5.6</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.6.0</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -507,7 +507,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.5.6</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.6.0</div>
   </div>
 </div>
 
@@ -591,7 +591,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.5.6';
+const APP_VERSION = '1.6.0';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1109,6 +1109,7 @@ function saveWeekDataToStorage(){
   const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   s.weekData=weekData;
   localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
+  saveAppData();
 }
 
 // ═══════════════════════════════════
@@ -1129,7 +1130,7 @@ function renderShopping(){
     const div=document.createElement('div');
     div.className='shopping-item'+(item.done?' done':'');
     div.innerHTML=`<div class="item-check">${item.done?'✓':''}</div><div class="item-name">${item.name}</div><div class="item-qty">${item.qty}</div>`;
-    div.onclick=()=>{item.done=!item.done;renderShopping();if(accessToken)sheetsUpdate(`'🛒 Shopping'!A${item.rowNum}`,[[item.done?'✓':'']]).catch(()=>{});};
+    div.onclick=()=>{item.done=!item.done;renderShopping();saveAppData();};
     el.appendChild(div);
   });
 }
@@ -1418,6 +1419,7 @@ function deleteTask() {
 function saveTasksToStorage() {
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   s.tasks = tasks; localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  saveAppData();
 }
 
 // ═══════════════════════════════════
@@ -1483,6 +1485,7 @@ function deleteContact() {
 function saveContactsToStorage() {
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   s.contacts = contactsData; localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  saveAppData();
 }
 
 // ═══════════════════════════════════
@@ -1539,6 +1542,7 @@ function recordPayment() {
 function savePayments() {
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   s.payments = payments; localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  saveAppData();
 }
 
 function toggleSophiaView() {
