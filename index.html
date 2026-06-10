@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.3.2 -->
+<!-- Family Home App v1.3.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -9,7 +9,8 @@
 <meta name="theme-color" content="#003C4C">
 <title>Home</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client">
+<script src="https://accounts.google.com/gsi/client"></script>
+<script>
 // ═══════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════
@@ -552,7 +553,25 @@ const ANTHROPIC_KEY = ''; // Paste your Anthropic API key here for timetable rea
 
 let accessToken = null;
 const STORAGE_KEY = 'familyapp_v1';
+const APP_VERSION = '1.3.3';
 const now = new Date();
+
+// ── Version-based cache bust ──
+(function() {
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  if (stored.version && stored.version !== APP_VERSION) {
+    // New version detected — clear cache but preserve auth token and timetable
+    const keep = { version: APP_VERSION, setupDone: stored.setupDone, timetable: stored.timetable };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
+    if (!sessionStorage.getItem('reloaded_' + APP_VERSION)) {
+      sessionStorage.setItem('reloaded_' + APP_VERSION, '1');
+      location.reload();
+    }
+  } else if (!stored.version) {
+    stored.version = APP_VERSION;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  }
+})();
 
 // ═══════════════════════════════════
 // INIT — check if already set up
@@ -613,6 +632,7 @@ function startSignIn() {
       const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')
       s.token = accessToken;
       s.setupDone = true;
+      s.version = APP_VERSION;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
       document.getElementById('onboarding').style.display = 'none';
       showApp();
@@ -1316,7 +1336,7 @@ function signOut() {
     </div>
 
     <!-- App version -->
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3.2</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3.3</div>
   </div>
 </div>
 
