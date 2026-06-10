@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.2 -->
+<!-- Family Home App v1.7.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -104,9 +104,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .day-tab.today .day-num{color:var(--sophia)}
 .day-name{font-size:10px;color:var(--text-secondary);font-weight:500}
 .day-num{font-size:15px;font-weight:600;color:var(--text)}
-.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);font-weight:500}
-.legend-dot{width:10px;height:10px;border-radius:3px}
+
 .day-events{display:flex;flex-direction:column;gap:8px}
 .day-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .day-header-label{font-size:13px;font-weight:600;color:var(--text)}
@@ -390,7 +388,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title">Welcome home</div>
     <div class="ob-sub">Your family's schedule, shopping, and contacts — all in one place.</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.2</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.3</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -433,16 +431,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 
   <!-- WEEK -->
   <div class="section" id="sec-week">
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--sophia)"></div>Sophia</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--jo)"></div>Jo</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--partner)"></div>Partner</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--betreuung)"></div>Betreuung</div>
-    </div>
     <div class="week-nav">
       <button onclick="changeWeek(-1)">&#8249;</button>
       <div class="week-nav-label" id="week-label">This week</div>
       <button onclick="changeWeek(1)">&#8250;</button>
+      <button onclick="goToToday()" id="today-btn" style="font-size:11px;font-weight:600;padding:0 10px;height:34px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-secondary);cursor:pointer;display:none">Today</button>
     </div>
     <div class="day-tabs" id="day-tabs"></div>
     <div class="day-events" id="day-events"></div>
@@ -614,7 +607,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.2</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.3</div>
   </div>
 </div>
 
@@ -635,13 +628,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       </div>
 
       <!-- Icon + Title row -->
-      <div class="field-row" style="align-items:flex-end;margin-bottom:14px">
-        <div class="field-group" style="flex:0;min-width:0">
-          <div class="field-label">Icon</div>
-          <div class="emoji-display" id="ev-icon-display" onclick="toggleEmojiPicker()" style="height:44px;width:44px;font-size:24px">🎯</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:14px">
+        <div style="flex-shrink:0">
+          <div class="field-label" style="margin-bottom:6px">Icon</div>
+          <div class="emoji-display" id="ev-icon-display" onclick="toggleEmojiPicker()" style="height:44px;width:44px;font-size:24px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer">🎯</div>
         </div>
-        <div class="field-group" style="flex:1">
-          <div class="field-label">Activity name</div>
+        <div style="flex:1;min-width:0">
+          <div class="field-label" style="margin-bottom:6px">Activity name</div>
           <input class="field-input" id="ev-title" type="text" placeholder="e.g. Swimming" oninput="autoIcon(this.value)" style="height:44px">
         </div>
       </div>
@@ -701,21 +694,29 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
       <div class="field-group">
-        <div class="field-label">Recurring?</div>
-        <div style="display:flex;align-items:center;gap:10px;padding:4px 0">
-          <input type="checkbox" id="ev-recurring" style="width:18px;height:18px;cursor:pointer" onchange="toggleRecurringOptions()">
-          <label for="ev-recurring" style="font-size:14px;color:var(--text);cursor:pointer">This is a recurring series</label>
-        </div>
-        <div id="ev-recurring-opts" style="display:none;margin-top:10px;background:var(--bg);border-radius:10px;padding:12px">
-          <div class="field-label" style="margin-bottom:8px">Frequency</div>
-          <div class="event-type-row" id="ev-freq-row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">
-            <span class="type-chip" data-freq="daily" onclick="selectFreq(this)">Daily</span>
-            <span class="type-chip active" data-freq="weekly" onclick="selectFreq(this)">Weekly</span>
-            <span class="type-chip" data-freq="monthly" onclick="selectFreq(this)">Monthly</span>
-            <span class="type-chip" data-freq="yearly" onclick="selectFreq(this)">Yearly</span>
+        <div class="field-label">Recurrence</div>
+        <div style="background:var(--bg);border-radius:10px;padding:12px;margin-top:6px">
+          <div style="display:flex;gap:16px;margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text)">
+              <input type="radio" name="ev-recur-radio" id="ev-recur-none" value="none" checked onchange="toggleRecurringOptions()" style="width:16px;height:16px;cursor:pointer">
+              One-off
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text)">
+              <input type="radio" name="ev-recur-radio" id="ev-recur-yes" value="recurring" onchange="toggleRecurringOptions()" style="width:16px;height:16px;cursor:pointer">
+              Recurring series
+            </label>
           </div>
-          <div class="field-label" style="margin-bottom:6px">End date (optional)</div>
-          <input class="field-input" id="ev-series-end" type="date" placeholder="No end date">
+          <div id="ev-recurring-opts" style="display:none">
+            <div class="field-label" style="margin-bottom:8px">Frequency</div>
+            <div class="event-type-row" id="ev-freq-row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">
+              <span class="type-chip" data-freq="daily" onclick="selectFreq(this)">Daily</span>
+              <span class="type-chip active" data-freq="weekly" onclick="selectFreq(this)">Weekly</span>
+              <span class="type-chip" data-freq="monthly" onclick="selectFreq(this)">Monthly</span>
+              <span class="type-chip" data-freq="yearly" onclick="selectFreq(this)">Yearly</span>
+            </div>
+            <div class="field-label" style="margin-bottom:6px">End date (optional)</div>
+            <input class="field-input" id="ev-series-end" type="date">
+          </div>
         </div>
       </div>
       <div class="editor-actions">
@@ -733,7 +734,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.7.3';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1245,9 +1246,17 @@ function getWeekStart(offset){
 }
 function changeWeek(dir){weekOffset+=dir;renderWeek();}
 
+function goToToday(){
+  weekOffset=0;
+  selectedDay=now.getDay()===0?7:now.getDay();
+  renderWeek();
+}
+
 function renderWeek(){
   const ws=getWeekStart(weekOffset);
   document.getElementById('week-label').textContent=weekOffset===0?'This week':weekOffset===1?'Next week':weekOffset===-1?'Last week':ws.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  const todayBtn=document.getElementById('today-btn');
+  if(todayBtn) todayBtn.style.display=weekOffset===0?'none':'block';
   const tabs=document.getElementById('day-tabs');
   tabs.innerHTML='';
   for(let i=0;i<7;i++){
@@ -1285,7 +1294,16 @@ function renderWeek(){
   }
 
   // Sort by start time
-  const sortedEvents = [...events].sort((a,b)=>{
+  // Get the actual date for the selected day this week
+  const _ws = getWeekStart(weekOffset);
+  const _sd = new Date(_ws); _sd.setDate(_ws.getDate() + (selectedDay===7?6:selectedDay-1));
+  const _sdStr = _sd.toISOString().split('T')[0];
+
+  const sortedEvents = [...events].filter(ev => {
+    // Filter out series entries past their end date
+    if (ev.seriesId && ev.seriesEnd && _sdStr > ev.seriesEnd) return false;
+    return true;
+  }).sort((a,b)=>{
     const ta = (a.time||'').split('–')[0].replace(':','') || '9999';
     const tb = (b.time||'').split('–')[0].replace(':','') || '9999';
     return ta.localeCompare(tb);
@@ -1348,7 +1366,10 @@ function openEventEditor(dayIdx,evIdx){
     document.getElementById('ev-pick').value=ev.pick||'';
     setEventIcon(ev.icon || autoIconFor(ev.title) || '🎯');
     const isRecurring = !!ev.seriesId && !ev.seriesOverride;
-    document.getElementById('ev-recurring').checked = isRecurring;
+    const radioNone = document.getElementById('ev-recur-none');
+    const radioYes = document.getElementById('ev-recur-yes');
+    if (radioNone) radioNone.checked = !isRecurring;
+    if (radioYes) radioYes.checked = isRecurring;
     const recurOpts = document.getElementById('ev-recurring-opts');
     if (recurOpts) recurOpts.style.display = isRecurring ? 'block' : 'none';
     if (isRecurring) {
@@ -1377,7 +1398,8 @@ function openEventEditor(dayIdx,evIdx){
   } else {
     ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('ev-start').value='';document.getElementById('ev-end').value='';
-    document.getElementById('ev-recurring').checked=false;
+    const _rn=document.getElementById('ev-recur-none');if(_rn)_rn.checked=true;
+    const _ry=document.getElementById('ev-recur-yes');if(_ry)_ry.checked=false;
     const _ro=document.getElementById('ev-recurring-opts');if(_ro)_ro.style.display='none';
     setEventIcon('🎯');
     document.getElementById('series-opts').classList.remove('open');
@@ -1428,7 +1450,7 @@ function saveEvent(){
   const pick=document.getElementById('ev-pick').value.trim();
   const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
   const icon=getEventIcon();
-  const isRecurring=document.getElementById('ev-recurring').checked;
+  const isRecurring=document.querySelector('input[name="ev-recur-radio"]:checked')?.value==='recurring';
   const frequency = isRecurring ? getFrequency() : null;
   const seriesEnd = isRecurring ? (document.getElementById('ev-series-end').value||null) : null;
   const time=start?(end?`${start}–${end}`:start):'';
@@ -2042,9 +2064,9 @@ function toggleEmojiPicker() {
 // RECURRING OPTIONS
 // ═══════════════════════════════════
 function toggleRecurringOptions() {
-  const checked = document.getElementById('ev-recurring').checked;
+  const isRecurring = document.querySelector('input[name="ev-recur-radio"]:checked')?.value === 'recurring';
   const opts = document.getElementById('ev-recurring-opts');
-  if (opts) opts.style.display = checked ? 'block' : 'none';
+  if (opts) opts.style.display = isRecurring ? 'block' : 'none';
 }
 
 function selectFreq(el) {
