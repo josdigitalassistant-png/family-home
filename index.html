@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Family Home App v1.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,7 +9,7 @@
 <meta name="theme-color" content="#003C4C">
 <title>Home</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer>
+<script src="https://accounts.google.com/gsi/client">
 // ═══════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════
@@ -555,13 +556,16 @@ const now = new Date();
 // ═══════════════════════════════════
 // INIT — check if already set up
 // ═══════════════════════════════════
-const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-if (saved.setupDone) {
-  showApp();
-  silentSignIn();
-} else {
-  document.getElementById('onboarding').style.display = 'flex';
+function init() {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  if (saved.setupDone) {
+    showApp();
+    silentSignIn();
+  } else {
+    document.getElementById('onboarding').style.display = 'flex';
+  }
 }
+window.addEventListener('load', init);
 
 // ═══════════════════════════════════
 // ONBOARDING
@@ -579,7 +583,7 @@ function startSignIn() {
     callback: (response) => {
       if (response.error) { goToStep(1); return; }
       accessToken = response.access_token;
-      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); // save token
       s.token = accessToken;
       s.setupDone = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
@@ -1314,7 +1318,7 @@ function signOut() {
     </div>
 
     <!-- App version -->
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.0</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.3</div>
   </div>
 </div>
 
