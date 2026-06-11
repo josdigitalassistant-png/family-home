@@ -2110,25 +2110,6 @@ function toggleSophiaView() {
   document.querySelector('.sophia-view-btn').textContent = v.classList.contains('open') ? '✕ Close Sophia\'s view' : '👧 Sophia\'s view';
 }
 
-// ═══════════════════════════════════
-// SERIES EDIT MODE
-// ═══════════════════════════════════
-let seriesEditMode = null;
-
-function setSeriesEditMode(mode) {
-  seriesEditMode = mode;
-  const opts = document.getElementById('series-opts');
-  if (opts) opts.classList.remove('open');
-  const label = mode === 'occurrence' ? '📅 Editing just this occurrence' : '📅 Editing this and all future';
-  const div = document.createElement('div');
-  div.style.cssText = 'font-size:12px;color:var(--sophia);font-weight:500;margin-bottom:10px;padding:6px 10px;background:var(--sophia-light);border-radius:8px';
-  div.textContent = label;
-  div.className = 'series-mode-label';
-  const body = document.querySelector('.event-editor-body');
-  const existing = body ? body.querySelector('.series-mode-label') : null;
-  if (existing) existing.remove();
-  if (body) body.insertBefore(div, body.children[1]);
-}
 
 // ═══════════════════════════════════
 // KIT CHECKLIST (Today tab)
