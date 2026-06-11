@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.0 -->
+<!-- Family Home App v1.8.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.0</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.1</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -668,7 +668,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.0</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.1</div>
   </div>
 </div>
 
@@ -702,8 +702,22 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <div class="emoji-picker" id="emoji-picker"></div>
 
       <div id="ev-date-row" style="display:none" class="field-group">
-        <div class="field-label">Date</div>
-        <input class="field-input" id="ev-date" type="date">
+        <div id="ev-date-single-wrap">
+          <div class="field-label">Date</div>
+          <input class="field-input" id="ev-date" type="date">
+        </div>
+        <div id="ev-date-range-wrap" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div class="field-label" style="margin-bottom:4px">From</div>
+              <input class="field-input" id="ev-date-from" type="date" style="width:100%;min-width:0;box-sizing:border-box">
+            </div>
+            <div>
+              <div class="field-label" style="margin-bottom:4px">To</div>
+              <input class="field-input" id="ev-date-to" type="date" style="width:100%;min-width:0;box-sizing:border-box">
+            </div>
+          </div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;width:100%;box-sizing:border-box">
         <div style="min-width:0">
@@ -741,7 +755,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         <div class="field-group">
           <div class="field-label">Kit needed</div>
           <div class="tt-kit-row" id="ev-kit-row">
-            <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎽 PE kit</span>
+            <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎽 Sports kit</span>
             <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🏊 Swim kit</span>
             <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎸 Instrument</span>
             <span class="tt-kit-chip add-kit-btn" onclick="addKitToEvent()">+ Other</span>
@@ -756,6 +770,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
           <span class="type-chip" data-type="family" onclick="selectType(this)">👨‍👩‍👧 Family</span>
           <span class="type-chip" data-type="activity" onclick="selectType(this)">⭐ Activity</span>
           <span class="type-chip" data-type="birthday" onclick="selectType(this)">🎂 Birthday</span>
+          <span class="type-chip" data-type="multiday" onclick="selectType(this)">📆 Multi-day</span>
         </div>
       </div>
       <div class="field-group">
@@ -799,7 +814,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -879,10 +894,10 @@ let accessToken = null;
 const timetable = (function(){
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   return s.timetable || {
-    mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
+    mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 Sports kit']},
     tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
     wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-    thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
+    thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 Sports kit']},
     fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
   };
 })();
@@ -906,7 +921,7 @@ const weekData = (function(){
 const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const dayNames = ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-const KIT_OPTIONS = ['🎽 PE kit','🎸 Instrument','🏊 Swim kit'];
+const KIT_OPTIONS = ['🎽 Sports kit','🎸 Instrument','🏊 Swim kit'];
 const WEEK_DAYS = [
   {key:'mon',label:'Monday'},{key:'tue',label:'Tuesday'},{key:'wed',label:'Wednesday'},
   {key:'thu',label:'Thursday'},{key:'fri',label:'Friday'}
@@ -1362,7 +1377,12 @@ function renderToday() {
   const jsDay = now.getDay();
   const idx = jsDay===0?7:jsDay;
   const todayKey = dayKeyMap[jsDay];
-  const tt = timetable[todayKey]||{subjects:[],kit:[]};
+  const _rawTodayTT = timetable[todayKey]||{subjects:[],kit:[]};
+  const _todayStr = now.toISOString().split('T')[0];
+  const _stt = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const _ttFromT = _stt.ttValidFrom||null; const _ttToT = _stt.ttValidTo||null;
+  const _ttValidToday = (!_ttFromT||_todayStr>=_ttFromT)&&(!_ttToT||_todayStr<=_ttToT);
+  const tt = _ttValidToday ? _rawTodayTT : {subjects:[],kit:[]};
   const todayEvents = weekData[idx]||[];
 
   // Build kit checklist
@@ -1371,7 +1391,7 @@ function renderToday() {
   todayEvents.forEach(ev => {
     const title = (ev.title||'').toLowerCase();
     if (title.includes('swim')) { if (!allKit.includes('🏊 Swim kit')) allKit.push('🏊 Swim kit'); }
-    else if (title.includes('turnen') || title.includes('sport') || title.includes(' pe ')) { if (!allKit.includes('🎽 PE kit')) allKit.push('🎽 PE kit'); }
+    else if (title.includes('turnen') || title.includes('sport') || title.includes(' pe ')) { if (!allKit.includes('🎽 Sports kit')) allKit.push('🎽 Sports kit'); }
     if (ev.kit && Array.isArray(ev.kit)) ev.kit.forEach(k => { if (!allKit.includes(k)) allKit.push(k); });
   });
   renderKitChecklist(allKit);
@@ -1457,7 +1477,13 @@ function renderWeek(){
   }
 
   const jsDay=selectedDay===7?0:selectedDay;
-  const tt=timetable[dayKeyMap[jsDay]]||{subjects:[],kit:[]};
+  const _rawTT = timetable[dayKeyMap[jsDay]]||{subjects:[],kit:[]};
+  // Only use timetable if within valid dates
+  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const _ttFrom = _s.ttValidFrom||null;
+  const _ttTo = _s.ttValidTo||null;
+  const _ttValid = (!_ttFrom || _sdStr >= _ttFrom) && (!_ttTo || _sdStr <= _ttTo);
+  const tt = _ttValid ? _rawTT : {subjects:[],kit:[]};
   const eventsEl=document.getElementById('day-events');
   eventsEl.innerHTML='';
 
@@ -1491,14 +1517,19 @@ function renderWeek(){
   const _sdStr = _sd.toISOString().split('T')[0];
 
   const sortedEvents = [...events].filter(ev => {
-    // Birthday: only show on its specific date
+    // Birthday: only show on its specific date (month-day match, yearly)
     if (ev.type === 'birthday' && ev.date) {
-      // Compare month-day only (yearly recurrence)
-      const evMD = ev.date.substring(5); // MM-DD
-      const sdMD = _sdStr.substring(5);
-      return evMD === sdMD;
+      return ev.date.substring(5) === _sdStr.substring(5);
     }
-    // Filter series past end date
+    // Multi-day: show if current date falls within dateFrom–dateTo
+    if (ev.type === 'multiday' && ev.dateFrom && ev.dateTo) {
+      return _sdStr >= ev.dateFrom && _sdStr <= ev.dateTo;
+    }
+    // One-off with specificDate: only show on that exact date
+    if (ev.specificDate && !ev.seriesId) {
+      return ev.specificDate === _sdStr;
+    }
+    // Series past end date
     if (ev.seriesEnd && _sdStr > ev.seriesEnd) return false;
     return true;
   }).sort((a,b)=>{
@@ -1542,9 +1573,16 @@ function renderWeek(){
 // ═══════════════════════════════════
 let editingDay=null,editingIdx=null;
 
+let editingWeekDate = null;
+
 function openEventEditor(dayIdx,evIdx){
   editingDay=dayIdx;editingIdx=evIdx;
   seriesEditMode=null;
+  // Store the actual calendar date for this day slot
+  const _ws = getWeekStart(weekOffset);
+  const _offset = dayIdx === 7 ? 6 : dayIdx - 1;
+  const _d = new Date(_ws); _d.setDate(_ws.getDate() + _offset);
+  editingWeekDate = _d.toISOString().split('T')[0];
   const isNew=evIdx===null;
   document.getElementById('event-editor-title').textContent=isNew?`Add — ${dayNames[dayIdx]}`:'Edit activity';
   document.getElementById('btn-delete-event').style.display=isNew?'none':'block';
@@ -1563,12 +1601,21 @@ function openEventEditor(dayIdx,evIdx){
     document.getElementById('ev-drop').value=ev.drop||'';
     document.getElementById('ev-pick').value=ev.pick||'';
     setEventIcon(ev.icon || autoIconFor(ev.title) || '🎯');
-    // Show date field for birthdays
+    // Show date fields
     const dateRow = document.getElementById('ev-date-row');
     const isBirthday = ev.type === 'birthday';
-    if (dateRow) dateRow.style.display = isBirthday ? 'block' : 'none';
+    const isMultiday = ev.type === 'multiday';
+    if (dateRow) dateRow.style.display = (isBirthday||isMultiday) ? 'block' : 'none';
+    const singleWrap = document.getElementById('ev-date-single-wrap');
+    const rangeWrap = document.getElementById('ev-date-range-wrap');
+    if (singleWrap) singleWrap.style.display = isBirthday ? 'block' : 'none';
+    if (rangeWrap) rangeWrap.style.display = isMultiday ? 'block' : 'none';
     const dateInput = document.getElementById('ev-date');
     if (dateInput) dateInput.value = ev.date || '';
+    const dfInput = document.getElementById('ev-date-from');
+    if (dfInput) dfInput.value = ev.dateFrom || '';
+    const dtInput = document.getElementById('ev-date-to');
+    if (dtInput) dtInput.value = ev.dateTo || '';
     const isRecurring = !!ev.seriesId && !ev.seriesOverride;
     const radioNone = document.getElementById('ev-recur-none');
     const radioYes = document.getElementById('ev-recur-yes');
@@ -1637,15 +1684,28 @@ function closeEventEditor(){document.getElementById('event-editor-overlay').clas
 function selectType(el){
   document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
-  const isBirthday = el.dataset.type === 'birthday';
+  const type = el.dataset.type;
   const dateRow = document.getElementById('ev-date-row');
-  if (dateRow) dateRow.style.display = isBirthday ? 'block' : 'none';
-  // Hide recurring options for birthday
-  if (isBirthday) {
+  const singleWrap = document.getElementById('ev-date-single-wrap');
+  const rangeWrap = document.getElementById('ev-date-range-wrap');
+  if (type === 'birthday') {
+    if (dateRow) dateRow.style.display = 'block';
+    if (singleWrap) singleWrap.style.display = 'block';
+    if (rangeWrap) rangeWrap.style.display = 'none';
     const rn = document.getElementById('ev-recur-none');
-    if (rn) { rn.checked = true; }
+    if (rn) rn.checked = true;
     const ro = document.getElementById('ev-recurring-opts');
     if (ro) ro.style.display = 'none';
+  } else if (type === 'multiday') {
+    if (dateRow) dateRow.style.display = 'block';
+    if (singleWrap) singleWrap.style.display = 'none';
+    if (rangeWrap) rangeWrap.style.display = 'block';
+    const rn = document.getElementById('ev-recur-none');
+    if (rn) rn.checked = true;
+    const ro = document.getElementById('ev-recurring-opts');
+    if (ro) ro.style.display = 'none';
+  } else {
+    if (dateRow) dateRow.style.display = 'none';
   }
 }
 
@@ -1662,6 +1722,8 @@ function saveEvent(){
   const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
   const icon=getEventIcon();
   const evDate=document.getElementById('ev-date')?.value||null;
+  const evDateFrom=document.getElementById('ev-date-from')?.value||null;
+  const evDateTo=document.getElementById('ev-date-to')?.value||null;
   const isRecurring=document.querySelector('input[name="ev-recur-radio"]:checked')?.value==='recurring';
   const frequency = isRecurring ? getFrequency() : null;
   const seriesEnd = isRecurring ? (document.getElementById('ev-series-end').value||null) : null;
@@ -1673,12 +1735,15 @@ function saveEvent(){
   if(editingIdx===null){
     // New event
     const seriesId = isRecurring ? ('s_'+Date.now()) : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate};
+    // For one-off events, store the actual calendar date so they don't repeat every week
+    const specificDate = (!isRecurring && editingWeekDate) ? editingWeekDate : null;
+    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,
+              date:evDate,dateFrom:evDateFrom,dateTo:evDateTo,specificDate};
     weekData[editingDay].push(ev);
   } else {
     const existing = weekData[editingDay][editingIdx];
     const seriesId = isRecurring ? (existing.seriesId || 's_'+Date.now()) : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate};
+    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate,dateFrom:evDateFrom,dateTo:evDateTo};
 
     if(existing.seriesId && seriesEditMode === 'occurrence'){
       // Only edit this one — add override flag
@@ -1720,6 +1785,18 @@ function saveEvent(){
     timetable[key]={subjects,kit};
     const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
     s.timetable=timetable;localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
+  }
+  // For multi-day events, ensure they appear in all day slots
+  if (type === 'multiday' && evDateFrom && evDateTo) {
+    const from = new Date(evDateFrom); const to = new Date(evDateTo);
+    const ev_md = {title,time,detail,type,icon,drop,pick,seriesId:null,
+                   dateFrom:evDateFrom,dateTo:evDateTo,specificDate:null};
+    for (let d=1; d<=7; d++) {
+      if (!weekData[d]) weekData[d] = [];
+      // Remove any existing entry with same dateFrom
+      weekData[d] = weekData[d].filter(e => !(e.type==='multiday' && e.dateFrom===evDateFrom));
+      weekData[d].push({...ev_md});
+    }
   }
   saveWeekDataToStorage();
   closeEventEditor();renderWeek();renderToday();
@@ -1981,10 +2058,10 @@ function handlePDFUpload(e){alert('PDF upload coming soon — please enter the s
 
 async function readTimetableWithClaude(base64){
   if(!ANTHROPIC_KEY)return{
-    mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 PE kit']},
+    mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 Sports kit']},
     tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
     wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
-    thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 PE kit']},
+    thu:{subjects:['Turnen','Sachkunde','Englisch'],kit:['🎽 Sports kit']},
     fri:{subjects:['Deutsch','Mathe','Werken'],kit:[]}
   };
   const res=await fetch('https://api.anthropic.com/v1/messages',{
@@ -1992,7 +2069,7 @@ async function readTimetableWithClaude(base64){
     headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
     body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
-      {type:'text',text:'Extract school timetable subjects per weekday. Return ONLY JSON: {"mon":{"subjects":[],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}} Add "🎽 PE kit" if Turnen/Sport. Add "🎨 Art apron" if Kunst/Werken.'}
+      {type:'text',text:'Extract school timetable subjects per weekday. Return ONLY JSON: {"mon":{"subjects":[],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}} Add "🎽 Sports kit" if Turnen/Sport. Add "🎨 Art apron" if Kunst/Werken.'}
     ]}]})
   });
   const data=await res.json();
