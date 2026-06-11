@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.4 -->
+<!-- Family Home App v1.8.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.4</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.5</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -675,7 +675,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.4</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.5</div>
   </div>
 </div>
 
@@ -821,7 +821,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.4';
+const APP_VERSION = '1.8.5';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1203,11 +1203,11 @@ function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + tab).classList.add('active');
+  if (tab === 'week') renderWeek();
+  if (tab === 'shopping') renderShopping();
+  if (tab === 'tasks') renderTasks();
   if (tab === 'money') renderMoney();
   if (tab === 'contacts') renderContacts();
-  // Update sync line to show current tab
-  const syncEl = document.getElementById('topbar-sync');
-  // Update menu active state if open
   document.querySelectorAll('.nav-menu-item').forEach(el => {
     el.classList.toggle('active', el.id === 'nav-item-' + tab);
   });
