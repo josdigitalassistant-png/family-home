@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.7 -->
+<!-- Family Home App v1.9.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.7</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.9.0</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -675,7 +675,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.7</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.9.0</div>
   </div>
 </div>
 
@@ -821,7 +821,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.7';
+const APP_VERSION = '1.9.0';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -911,919 +911,247 @@ const timetable = (function(){
 
 const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
 
+// ═══════════════════════════════════
+// ACTIVITY ENGINE — date-based storage
+// ═══════════════════════════════════
+let activities = [];
+
+function localDate(str) {
+  if (!str) return null;
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function dateStr(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dowOf(str) {
+  const d = localDate(str);
+  const js = d.getDay();
+  return js === 0 ? 7 : js;
+}
+
+function getActivitiesForDate(ds) {
+  const results = [];
+  activities.forEach(act => {
+    if (!act.id || !act.title) return;
+    const sched = act.scheduleType || 'oneoff';
+    if (sched === 'oneoff') {
+      if (act.date === ds) results.push(act);
+    } else if (sched === 'multiday') {
+      if (act.dateFrom && act.dateTo) {
+        const f=act.dateFrom.replace(/-/g,'/'), t=act.dateTo.replace(/-/g,'/'), c=ds.replace(/-/g,'/');
+        if (c >= f && c <= t) results.push(act);
+      }
+    } else if (sched === 'recurring') {
+      const r = act.recurrence;
+      if (!r || !r.startDate) return;
+      if (ds < r.startDate) return;
+      if (r.endDate && ds > r.endDate) return;
+      const freq = r.frequency || 'weekly';
+      if (freq === 'daily') { results.push(act); }
+      else if (freq === 'weekly') {
+        const dow = dowOf(ds);
+        const days = r.daysOfWeek && r.daysOfWeek.length ? r.daysOfWeek : [dowOf(r.startDate)];
+        if (days.includes(dow)) results.push(act);
+      } else if (freq === 'monthly') {
+        if (localDate(r.startDate).getDate() === localDate(ds).getDate()) results.push(act);
+      } else if (freq === 'yearly') {
+        if (r.startDate.substring(5) === ds.substring(5)) results.push(act);
+      }
+    } else if (act.type === 'birthday' && act.date) {
+      if (act.date.substring(5) === ds.substring(5)) results.push(act);
+    }
+  });
+  // Apply overrides
+  return results.map(act => {
+    const ov = act.overrides && act.overrides[ds];
+    return ov ? {...act, ...ov} : act;
+  }).filter(act => !act.cancelled)
+    .sort((a,b) => (a.startTime||'99:99').localeCompare(b.startTime||'99:99'));
+}
+
+// Shim for backward compat
 const weekData = {1:[],2:[],3:[],4:[],5:[],6:[],7:[]};
 
-const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const dayNames = ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+// ── EDITOR STATE ──
+let editingActivityId = null;
+let editingDateContext = null;
+let seriesEditMode = null;
 
-const KIT_OPTIONS = ['🎽 Sports kit','🎸 Instrument','🏊 Swim kit'];
-const WEEK_DAYS = [
-  {key:'mon',label:'Monday'},{key:'tue',label:'Tuesday'},{key:'wed',label:'Wednesday'},
-  {key:'thu',label:'Thursday'},{key:'fri',label:'Friday'}
-];
-
-// ═══════════════════════════════════
-// INIT
-// ═══════════════════════════════════
-window.addEventListener('load', function(){
-  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  if (s.setupDone) {
-    if (s.token) accessToken = s.token;
-    showApp();
-    // Get a fresh token silently — on success it will call loadAllSheets again
-    silentSignIn();
-  } else {
-    document.getElementById('onboarding').style.display = 'flex';
-  }
-});
-
-// ═══════════════════════════════════
-// AUTH
-// ═══════════════════════════════════
-function startSignIn() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    alert('Google sign-in is still loading — please wait a moment and try again.');
-    return;
-  }
-  document.querySelectorAll('.ob-step').forEach(s=>s.classList.remove('active'));
-  document.getElementById('ob-step-2').classList.add('active');
-  // Use a fresh token client with explicit consent for first sign-in
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID, scope: SCOPES,
-    callback: (response) => {
-      if (response.error) {
-        document.querySelectorAll('.ob-step').forEach(s=>s.classList.remove('active'));
-        document.getElementById('ob-step-1').classList.add('active');
-        return;
-      }
-      accessToken = response.access_token;
-      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      s.token = accessToken; s.setupDone = true; s.version = APP_VERSION;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-      // Prime the token client singleton with this session
-      _tokenClient = client;
-      document.getElementById('onboarding').style.display = 'none';
-      showApp();
-      loadAllSheets();
-    }
-  });
-  client.requestAccessToken();
+function onScheduleTypeChange() {
+  const val = document.querySelector('input[name="ev-schedule-type"]:checked')?.value || 'oneoff';
+  document.getElementById('ev-sched-oneoff').style.display = val==='oneoff'?'block':'none';
+  document.getElementById('ev-sched-multiday').style.display = val==='multiday'?'block':'none';
+  document.getElementById('ev-sched-recurring').style.display = val==='recurring'?'block':'none';
 }
 
-// Token client singleton — create once, reuse
-let _tokenClient = null;
-let _tokenRefreshQueue = []; // callbacks waiting for new token
-let _tokenRefreshing = false;
-
-function getTokenClient() {
-  if (!_tokenClient && typeof google !== 'undefined' && google.accounts) {
-    _tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      prompt: '',
-      callback: (response) => {
-        _tokenRefreshing = false;
-        if (!response.error) {
-          accessToken = response.access_token;
-          const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-          s.token = accessToken;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-          setSyncLive();
-          // Drain the queue
-          const q = _tokenRefreshQueue.splice(0);
-          q.forEach(cb => cb(true));
-        } else {
-          console.warn('Token refresh failed:', response.error);
-          setSyncError();
-          const q = _tokenRefreshQueue.splice(0);
-          q.forEach(cb => cb(false));
-        }
-      }
-    });
-  }
-  return _tokenClient;
-}
-
-// Silently refresh token — queue multiple callers so only one popup attempt
-function refreshToken() {
-  return new Promise((resolve) => {
-    _tokenRefreshQueue.push(resolve);
-    if (!_tokenRefreshing) {
-      _tokenRefreshing = true;
-      const client = getTokenClient();
-      if (client) {
-        client.requestAccessToken();
-      } else {
-        // Google not loaded yet — retry in 1s
-        setTimeout(() => {
-          _tokenRefreshing = false;
-          refreshToken().then(resolve);
-        }, 1000);
-      }
-    }
-  });
-}
-
-function silentSignIn(onSuccess) {
-  refreshToken().then(ok => {
-    if (ok) {
-      if (onSuccess) onSuccess();
-      else loadAllSheets();
-    } else {
-      setSyncError();
-    }
-  });
-}
-
-// Called when any API request gets a 401
-async function refreshTokenAndRetry(retryFn) {
-  const ok = await refreshToken();
-  if (ok) {
-    try { return await retryFn(); }
-    catch(e) { setSyncError(); return null; }
-  }
-  return null;
-}
-
-function signOut() {
-  if (accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
-  accessToken = null;
-  localStorage.removeItem(STORAGE_KEY);
-  location.reload();
-}
-
-function showApp() {
-  document.getElementById('app').classList.add('ready');
-  initApp();
-  startAutoSync();
-  // Always attempt to load from sheet on show
-  if (accessToken) {
-    loadAllSheets();
-  }
-}
-
-let syncInterval = null;
-let tokenExpiredAt = null;
-
-function startAutoSync() {
-  if (syncInterval) clearInterval(syncInterval);
-  // Poll every 60s but only if token is valid — no popup attempts
-  syncInterval = setInterval(() => {
-    if (accessToken && document.visibilityState === 'visible' && !tokenExpiredAt) {
-      silentRefresh();
-    }
-  }, 60000);
-
-  // On focus: if token expired show reconnect banner, otherwise sync
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      if (tokenExpiredAt) {
-        showReconnectBanner();
-      } else if (accessToken) {
-        silentRefresh();
-      }
-    }
-  });
-}
-
-let lastRefresh = 0;
-function silentRefresh() {
-  const n = Date.now();
-  if (n - lastRefresh < 15000) return;
-  lastRefresh = n;
-  showSyncPulse();
-  loadAllSheets().catch(e => {
-    console.warn('silentRefresh failed:', e);
-    setSyncError();
-  });
-}
-
-function showReconnectBanner() {
-  const b = document.getElementById('reconnect-banner');
-  if (b) b.classList.add('visible');
-}
-
-function hideReconnectBanner() {
-  const b = document.getElementById('reconnect-banner');
-  if (b) b.classList.remove('visible');
-}
-
-function reconnect() {
-  hideReconnectBanner();
-  tokenExpiredAt = null;
-  // Request new token — this will open popup only once on user tap (allowed by browser)
-  refreshToken().then(ok => {
-    if (ok) { loadAllSheets(); }
-  });
-}
-
-function showSyncPulse() {
-  const dot = document.getElementById('sync-dot');
-  if (dot) {
-    dot.style.opacity = '0.4';
-    setTimeout(() => { dot.style.opacity = '1'; }, 600);
-  }
-}
-
-function setSyncLive() {
-  tokenExpiredAt = null;
-  hideReconnectBanner();
-  const d=document.getElementById('sync-dot');
-  if(d) d.className='sync-dot live';
-  const t=document.getElementById('topbar-sync');
-  if(t) t.textContent=`Synced ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
-  else setTimeout(setSyncLive, 500); // retry if topbar not ready yet
-}
-function setSyncError() {
-  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error';
-  const t=document.getElementById('topbar-sync');
-  if(t) t.textContent=`Sync failed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
-}
-
-// ═══════════════════════════════════
-// APP INIT
-// ═══════════════════════════════════
-function initApp() {
-  // Note: tasks, contacts, shopping loaded from AppData via applyAppState
-  // Don't load from localStorage to avoid stale data
-
-  const hour = now.getHours();
-  document.getElementById('greeting').textContent = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
-  const dateEl = document.getElementById('greeting-date');
-  if(dateEl) dateEl.textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
-}
-
-const NAV_TABS = [
-  {id:'today',    icon:'☀️',  label:'Today'},
-  {id:'week',     icon:'📅',  label:'Week'},
-  {id:'shopping', icon:'🛒',  label:'Shopping'},
-  {id:'tasks',    icon:'✅',  label:'Tasks'},
-  {id:'money',    icon:'💰',  label:'Money'},
-  {id:'contacts', icon:'📞',  label:'Contacts'},
-];
-
-let currentTab = 'today';
-
-function buildMenu() {
-  const inner = document.getElementById('nav-dropdown-inner');
-  if (!inner) return;
-  inner.innerHTML = '';
-  NAV_TABS.forEach(t => {
-    const div = document.createElement('div');
-    div.className = 'nav-menu-item' + (t.id === currentTab ? ' active' : '');
-    div.id = 'nav-item-' + t.id;
-    div.innerHTML = `<span class="nav-menu-icon">${t.icon}</span><span class="nav-menu-label">${t.label}</span>`;
-    div.onclick = () => { closeMenu(); setTimeout(() => switchTab(t.id), 50); };
-    inner.appendChild(div);
-  });
-}
-
-function toggleMenu() {
-  const dd = document.getElementById('nav-dropdown');
-  const overlay = document.getElementById('nav-overlay');
-  const btn = document.getElementById('hamburger-btn');
-  const isOpen = dd.classList.contains('open');
-  if (isOpen) {
-    dd.classList.remove('open');
-    overlay.classList.remove('open');
-    btn.classList.remove('open');
-  } else {
-    buildMenu();
-    dd.classList.add('open');
-    overlay.classList.add('open');
-    btn.classList.add('open');
-  }
-}
-
-function closeMenu() {
-  document.getElementById('nav-dropdown').classList.remove('open');
-  document.getElementById('nav-overlay').classList.remove('open');
-  document.getElementById('hamburger-btn').classList.remove('open');
-}
-
-function switchTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('sec-' + tab).classList.add('active');
-  if (tab === 'week') renderWeek();
-  if (tab === 'shopping') renderShopping();
-  if (tab === 'tasks') renderTasks();
-  if (tab === 'money') renderMoney();
-  if (tab === 'contacts') renderContacts();
-  document.querySelectorAll('.nav-menu-item').forEach(el => {
-    el.classList.toggle('active', el.id === 'nav-item-' + tab);
-  });
-}
-
-// ═══════════════════════════════════
-// SHEETS API — two-way sync via AppData tab
-// ═══════════════════════════════════
-const APP_DATA_RANGE = "'AppData'!A1";
-
-async function sheetsGet(range) {
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`,
-    {headers:{Authorization:`Bearer ${accessToken}`}});
-  if (res.status === 401) {
-    tokenExpiredAt = Date.now();
-    showReconnectBanner();
-    throw new Error('401 - token expired');
-  }
-  if (!res.ok) throw new Error(res.status);
-  return (await res.json()).values || [];
-}
-async function sheetsUpdate(range, values) {
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
-    {method:'PUT',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
-  if (res.status === 401) {
-    tokenExpiredAt = Date.now();
-    showReconnectBanner();
-    throw new Error('401 - token expired');
-  }
-}
-async function sheetsAppend(range, values) {
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
-    {method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
-}
-
-async function ensureAppDataSheet() {
-  try {
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
-      {headers:{Authorization:`Bearer ${accessToken}`}});
-    if (res.status === 401) { tokenExpiredAt = Date.now(); showReconnectBanner(); return; }
-    if (!res.ok) return; // Can't check — skip, will fail gracefully later
-    const meta = await res.json();
-    if (!meta.sheets) return; // Unexpected response
-    const exists = meta.sheets.some(s => s.properties.title === 'AppData');
-    if (!exists) {
-      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`, {
-        method:'POST',
-        headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
-        body:JSON.stringify({requests:[{addSheet:{properties:{title:'AppData'}}}]})
-      });
-      console.log('AppData sheet created');
-    }
-  } catch(e) { console.warn('ensureAppDataSheet:', e); }
-}
-
-async function loadAppData() {
-  try {
-    const rows = await sheetsGet(APP_DATA_RANGE);
-    if (rows && rows[0] && rows[0][0]) {
-      return JSON.parse(rows[0][0]);
-    }
-  } catch(e) { console.warn('loadAppData:', e); }
-  return null;
-}
-
-async function saveAppData() {
-  if (!accessToken) return;
-  try {
-    // Normalise weekData keys to numbers before saving
-    const normWeekData = {};
-    for(let k in weekData) normWeekData[parseInt(k)||k] = weekData[k];
-    const _sv = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    const state = {
-      version: APP_VERSION,
-      weekData: normWeekData,
-      shopping: shopping,
-      tasks: tasks,
-      contacts: contactsData,
-      payments: payments,
-      timetable: timetable,
-      ttValidFrom: _sv.ttValidFrom||null,
-      ttValidTo: _sv.ttValidTo||null,
-      updatedAt: new Date().toISOString()
-    };
-    await sheetsUpdate(APP_DATA_RANGE, [[JSON.stringify(state)]]);
-    setSyncLive();
-    console.log('AppData saved at', state.updatedAt);
-  } catch(e) { setSyncError(); console.error('saveAppData:', e); }
-}
-
-function applyAppState(remote) {
-  if (!remote) return;
-  if (remote.weekData) {
-    // Clear all keys first, then rebuild with numeric keys
-    for(let k in weekData) delete weekData[k];
-    for(let k in remote.weekData) weekData[parseInt(k)||k] = remote.weekData[k];
-  }
-  if (remote.shopping) { shopping.length=0; remote.shopping.forEach(s=>shopping.push(s)); nextId=shopping.length+1; }
-  if (remote.tasks) { tasks.length=0; remote.tasks.forEach(t=>tasks.push(t)); }
-  if (remote.contacts) { for(let k in remote.contacts) contactsData[k]=remote.contacts[k]; }
-  if (remote.payments) { payments.length=0; remote.payments.forEach(p=>payments.push(p)); }
-  if (remote.timetable) { for(let k in remote.timetable) timetable[k]=remote.timetable[k]; }
-  if (remote.ttValidFrom !== undefined) {
-    const _sv2 = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    _sv2.ttValidFrom = remote.ttValidFrom;
-    _sv2.ttValidTo = remote.ttValidTo;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(_sv2));
-  }
-  // Only cache auth/settings to localStorage, not app data
-  // AppData sheet is the single source of truth for app data
-}
-
-async function loadAllSheets() {
-  try {
-    await ensureAppDataSheet();
-    const remote = await loadAppData();
-    if (remote) {
-      console.log('Loaded AppData, updatedAt:', remote.updatedAt);
-      applyAppState(remote);
-    } else {
-      console.log('No AppData found, bootstrapping from sheets...');
-      await bootstrapFromSheets();
-      await saveAppData();
-    }
-    setSyncLive();
-    renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
-  } catch(e) { setSyncError(); console.error('loadAllSheets:', e); }
-}
-
-async function bootstrapFromSheets() {
-  try {
-    const rows = await sheetsGet("'🔁 Recurring'!A4:S100");
-    for(let d=1;d<=7;d++) weekData[d]=[];
-    rows.filter(r=>r[0]&&r[0].trim()).forEach(r=>{
-      const ev={title:r[0]||'',type:r[2]==='Betreuung'?'betreuung':r[2]==='School'?'school':'jo-event',
-        startTime:r[10]||'',endTime:r[11]||'',location:r[15]||'',drop:r[16]||'',pick:r[17]||'',notes:r[18]||''};
-      [{idx:1,flag:'mon'},{idx:2,flag:'tue'},{idx:3,flag:'wed'},{idx:4,flag:'thu'},{idx:5,flag:'fri'},{idx:6,flag:'sat'},{idx:7,flag:'sun'}]
-      .forEach(({idx,flag})=>{
-        const colMap={mon:3,tue:4,wed:5,thu:6,fri:7,sat:8,sun:9};
-        if(r[colMap[flag]]==='✓')
-          weekData[idx].push({title:ev.title,time:ev.startTime+(ev.endTime?'–'+ev.endTime:''),
-            detail:ev.location+(ev.notes?' · '+ev.notes:''),type:ev.type,drop:ev.drop,pick:ev.pick});
-      });
-    });
-  } catch(e) { console.warn('bootstrap recurring:', e); }
-  try {
-    const rows = await sheetsGet("'🛒 Shopping'!A4:G200");
-    shopping.length=0;
-    rows.filter(r=>r[1]).forEach((r,i)=>shopping.push({id:i+1,done:r[0]==='✓',name:r[1]||'',qty:r[3]||'1x',by:r[4]||''}));
-    nextId=shopping.length+1;
-  } catch(e) { console.warn('bootstrap shopping:', e); }
-  try {
-    const rows = await sheetsGet("'✅ Tasks'!A4:H200");
-    tasks.length=0;
-    rows.filter(r=>r[0]).forEach((r,i)=>tasks.push({id:i+1,name:r[0],owner:r[1]||'',due:r[2]||'',done:r[3]==='Done',priority:r[4]||'Medium',recurring:r[5]==='Yes'}));
-  } catch(e) { console.warn('bootstrap tasks:', e); }
-  try {
-    const rows = await sheetsGet("'🎒 Sophia'!A4:F15");
-    if(rows.length) contactsData.sophia=rows.filter(r=>r[0]).map(r=>({name:r[0],role:r[1]||'',phone:r[2]||'',email:r[3]||'',note:r[5]||''}));
-  } catch(e) { console.warn('bootstrap contacts:', e); }
-}
-
-// ═══════════════════════════════════
-// TODAY
-// ═══════════════════════════════════
-function renderToday() {
-  const jsDay = now.getDay();
-  const idx = jsDay===0?7:jsDay;
-  const todayKey = dayKeyMap[jsDay];
-  const _rawTodayTT = timetable[todayKey]||{subjects:[],kit:[]};
-  const _todayStr = now.toISOString().split('T')[0];
-  const _stt = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _ttFromT = _stt.ttValidFrom||null; const _ttToT = _stt.ttValidTo||null;
-  const _ttValidToday = (!_ttFromT||_todayStr>=_ttFromT)&&(!_ttToT||_todayStr<=_ttToT);
-  const tt = _ttValidToday ? _rawTodayTT : {subjects:[],kit:[]};
-  const todayEvents = weekData[idx]||[];
-
-  // Build kit checklist
-  const allKit = [];
-  if (tt.kit && tt.kit.length) allKit.push(...tt.kit);
-  todayEvents.forEach(ev => {
-    const title = (ev.title||'').toLowerCase();
-    if (title.includes('swim')) { if (!allKit.includes('🏊 Swim kit')) allKit.push('🏊 Swim kit'); }
-    else if (title.includes('turnen') || title.includes('sport') || title.includes(' pe ')) { if (!allKit.includes('🎽 Sports kit')) allKit.push('🎽 Sports kit'); }
-    if (ev.kit && Array.isArray(ev.kit)) ev.kit.forEach(k => { if (!allKit.includes(k)) allKit.push(k); });
-  });
-  renderKitChecklist(allKit);
-
-
-
-  const todayEl=document.getElementById('today-events');
-  todayEl.innerHTML='';
-  if(!todayEvents.length){
-    todayEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:12px 0">Nothing scheduled today 🌿</div>';
-  } else {
-    todayEvents.forEach(ev=>{
-      const card=document.createElement('div');
-      const _cardType = ev.type||'activity';
-      card.className='event-card '+_cardType;
-      const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
-      const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
-      const _icon = ev.icon||autoIconFor(ev.title)||'';
-      const _timeParts = (ev.time||'').split('–');
-      const _startTime = _timeParts[0]||'';
-      const _endTime = _timeParts[1]||'';
-      card.innerHTML=`
-        <div class="event-icon-col">${_icon||'&nbsp;'}</div>
-        <div class="event-time">${_startTime?`<span>${_startTime}</span>`:''}${_endTime?`<span style="font-weight:400">${_endTime}</span>`:''}</div>
-        <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div>${subjectLine}</div>
-`;
-      todayEl.appendChild(card);
-    });
-  }
-
-  const upcomingEl=document.getElementById('upcoming-events');
-  upcomingEl.innerHTML='';
-  let count=0;
-  for(let offset=1;offset<=6&&count<3;offset++){
-    const nextIdx=((idx-1+offset)%7)+1;
-    (weekData[nextIdx]||[]).slice(0,1).forEach(ev=>{
-      if(count>=3)return;
-      const d=new Date(now);d.setDate(d.getDate()+offset);
-      const card=document.createElement('div');
-      const _cardType = ev.type||'activity';
-      card.className='event-card '+_cardType;
-      const _uicon=ev.icon||autoIconFor(ev.title)||'';
-      card.innerHTML=`<div class="event-icon-col">${_uicon||'&nbsp;'}</div><div class="event-time">${d.toLocaleDateString('en-GB',{weekday:'short'})}</div><div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div></div>`;
-      upcomingEl.appendChild(card);count++;
-    });
-  }
-}
-
-// ═══════════════════════════════════
-// WEEK VIEW
-// ═══════════════════════════════════
-let weekOffset=0;
-let selectedDay=now.getDay()===0?7:now.getDay();
-
-function getWeekStart(offset){
-  const d=new Date(now);
-  d.setDate(d.getDate()-(d.getDay()===0?6:d.getDay()-1)+offset*7);
-  d.setHours(0,0,0,0);return d;
-}
-function changeWeek(dir){weekOffset+=dir;renderWeek();}
-
-function goToToday(){
-  weekOffset=0;
-  selectedDay=now.getDay()===0?7:now.getDay();
-  renderWeek();
-}
-
-function renderWeek(){
-  const ws=getWeekStart(weekOffset);
-  document.getElementById('week-label').textContent=weekOffset===0?'This week':weekOffset===1?'Next week':weekOffset===-1?'Last week':ws.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-  const todayBtnRow=document.getElementById('today-btn-row');
-  if(todayBtnRow) todayBtnRow.style.display=weekOffset===0?'none':'block';
-  const tabs=document.getElementById('day-tabs');
-  tabs.innerHTML='';
-  for(let i=0;i<7;i++){
-    const d=new Date(ws);d.setDate(ws.getDate()+i);
-    const idx=i===6?7:i+1;
-    const btn=document.createElement('div');
-    btn.className='day-tab'+(idx===selectedDay?' active':'')+(d.toDateString()===now.toDateString()?' today':'');
-    btn.innerHTML=`<div class="day-name">${days7[d.getDay()]}</div><div class="day-num">${d.getDate()}</div>`;
-    btn.onclick=(()=>{const di=idx;return()=>{selectedDay=di;renderWeek();};})();
-    tabs.appendChild(btn);
-  }
-
-  const jsDay=selectedDay===7?0:selectedDay;
-  const _rawTT = timetable[dayKeyMap[jsDay]]||{subjects:[],kit:[]};
-  // Only use timetable if within valid dates
-  const _s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _ttFrom = _s.ttValidFrom||null;
-  const _ttTo = _s.ttValidTo||null;
-  const _ttValid = (!_ttFrom || _sdStr >= _ttFrom) && (!_ttTo || _sdStr <= _ttTo);
-  const tt = _ttValid ? _rawTT : {subjects:[],kit:[]};
-  const eventsEl=document.getElementById('day-events');
-  eventsEl.innerHTML='';
-
-  const hdr=document.createElement('div');
-  hdr.className='day-header-row';
-  hdr.innerHTML=`<div class="day-header-label">${dayNames[selectedDay]}</div>`;
-  const addBtn=document.createElement('button');
-  addBtn.className='btn-add-event';
-  addBtn.title='Add activity';
-  addBtn.textContent='+';
-  const _addDay = selectedDay;
-  addBtn.onclick = function(){ openEventEditor(_addDay, null); };
-  hdr.appendChild(addBtn);
-  eventsEl.appendChild(hdr);
-
-  const events=weekData[selectedDay]||[];
-  if(!events.length){
-    const empty=document.createElement('div');
-    empty.className='empty-day';
-    empty.textContent='🌿 Nothing scheduled — tap + to add';
-    eventsEl.appendChild(empty);
-  }
-
-  // Sort by start time
-  // Get the actual date for the selected day this week
-  const _ws = getWeekStart(weekOffset);
-  // selectedDay: 1=Mon,2=Tue...7=Sun; offset from Monday (index 0)
-  const _dayOffset = selectedDay === 7 ? 6 : selectedDay - 1;
-  const _sd = new Date(_ws);
-  _sd.setDate(_ws.getDate() + _dayOffset);
-  _sd.setHours(0,0,0,0);
-  const _sdStr = _sd.toISOString().split('T')[0];
-
-  const sortedEvents = [...events].filter(ev => {
-    // Birthday: only show on its specific date (month-day match, yearly)
-    if (ev.type === 'birthday' && ev.date) {
-      return ev.date.substring(5) === _sdStr.substring(5);
-    }
-    // Multi-day: show if current date falls within dateFrom–dateTo (inclusive)
-    if (ev.type === 'multiday' && ev.dateFrom && ev.dateTo) {
-      // Parse as local dates to avoid UTC offset issues
-      const _from = ev.dateFrom.replace(/-/g,'/');
-      const _to = ev.dateTo.replace(/-/g,'/');
-      const _cur = _sdStr.replace(/-/g,'/');
-      return _cur >= _from && _cur <= _to;
-    }
-    // One-off with specificDate: only show on that exact date
-    if (ev.specificDate && !ev.seriesId) {
-      return ev.specificDate === _sdStr;
-    }
-    // Series past end date
-    if (ev.seriesEnd && _sdStr > ev.seriesEnd) return false;
-    return true;
-  }).sort((a,b)=>{
-    const ta = (a.time||'').split('–')[0].replace(':','') || '9999';
-    const tb = (b.time||'').split('–')[0].replace(':','') || '9999';
-    return ta.localeCompare(tb);
-  });
-  sortedEvents.forEach((ev,evIdx)=>{
-    const realIdx = events.indexOf(ev);
-    evIdx = realIdx;
-    const div=document.createElement('div');
-    div.className='day-event-block ' + (ev.type||'activity');
-    const isMainSchool = ev.type==='school' && (ev.title==='School'||ev.title==='School (full day)');
-    const subjectLine=isMainSchool&&tt.subjects.length?`<div class="day-event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
-    const icon = ev.icon || autoIconFor(ev.title) || '';
-    const isBirthday = ev.type==='birthday';
-    if(isBirthday){
-      div.className='birthday-card';
-      div.innerHTML=`<div class="birthday-emoji">🎂</div>
-        <div><div class="birthday-name">${ev.title}</div>
-        ${ev.detail?`<div class="birthday-sub">${ev.detail}</div>`:''}
-        </div>`;
-    } else {
-      div.innerHTML=`<div class="day-event-row">
-        <div class="day-event-title">${icon?`<span style="margin-right:5px">${icon}</span>`:''}${ev.title}</div>
-        <div class="day-event-time">${ev.time||''}</div></div>
-        <div class="day-event-detail">${ev.detail||''}</div>${subjectLine}
-        ${ev.seriesId&&!ev.seriesOverride&&ev.frequency?`<div class="recurring-badge">🔁 ${ev.frequency.charAt(0).toUpperCase()+ev.frequency.slice(1)}</div>`:''}${ev.seriesOverride?'<div class="recurring-badge" style="color:#D97706;background:#FEF3C7">📅 Edited</div>':''}
-        ${ev.drop||ev.pick?`<div class="day-event-owners">
-          ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
-          ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
-        </div>`:''}`;
-    }
-    div.onclick=(()=>{const di=selectedDay,ei=realIdx;return()=>openEventEditor(di,ei);})();
-    eventsEl.appendChild(div);
-  });
-}
-
-// ═══════════════════════════════════
-// EVENT EDITOR
-// ═══════════════════════════════════
-let editingDay=null,editingIdx=null;
-
-let editingWeekDate = null;
-
-function openEventEditor(dayIdx,evIdx){
-  editingDay=dayIdx;editingIdx=evIdx;
-  seriesEditMode=null;
-  // Store the actual calendar date for this day slot
-  const _ws = getWeekStart(weekOffset);
-  const _offset = dayIdx === 7 ? 6 : dayIdx - 1;
-  const _d = new Date(_ws); _d.setDate(_ws.getDate() + _offset);
-  editingWeekDate = _d.toISOString().split('T')[0];
-  const isNew=evIdx===null;
-  document.getElementById('event-editor-title').textContent=isNew?`Add — ${dayNames[dayIdx]}`:'Edit activity';
-  document.getElementById('btn-delete-event').style.display=isNew?'none':'block';
-  document.getElementById('emoji-picker').className='emoji-picker'; // close picker
-  // Remove any previous series mode label
-  document.querySelectorAll('.series-mode-label').forEach(e=>e.remove());
-  if(!isNew){
-    const ev=weekData[dayIdx][evIdx];
-    const tp=(ev.time||'').split('–');
-    document.getElementById('ev-title').value=ev.title||'';
-    document.getElementById('ev-start').value=tp[0]?tp[0].trim():'';
-    document.getElementById('ev-end').value=tp[1]?tp[1].trim():'';
-    const dp=(ev.detail||'').split(' · ');
-    document.getElementById('ev-location').value=dp[0]||'';
-    document.getElementById('ev-notes').value=dp[1]||'';
-    document.getElementById('ev-drop').value=ev.drop||'';
-    document.getElementById('ev-pick').value=ev.pick||'';
-    setEventIcon(ev.icon || autoIconFor(ev.title) || '🎯');
-    // Show date fields
-    const dateRow = document.getElementById('ev-date-row');
-    const isBirthday = ev.type === 'birthday';
-    const isMultiday = ev.type === 'multiday';
-    if (dateRow) dateRow.style.display = (isBirthday||isMultiday) ? 'block' : 'none';
-    const singleWrap = document.getElementById('ev-date-single-wrap');
-    const rangeWrap = document.getElementById('ev-date-range-wrap');
-    if (singleWrap) singleWrap.style.display = isBirthday ? 'block' : 'none';
-    if (rangeWrap) rangeWrap.style.display = isMultiday ? 'block' : 'none';
-    const dateInput = document.getElementById('ev-date');
-    if (dateInput) dateInput.value = ev.date || '';
-    const dfInput = document.getElementById('ev-date-from');
-    if (dfInput) dfInput.value = ev.dateFrom || '';
-    const dtInput = document.getElementById('ev-date-to');
-    if (dtInput) dtInput.value = ev.dateTo || '';
-    const isRecurring = !!ev.seriesId && !ev.seriesOverride;
-    const radioNone = document.getElementById('ev-recur-none');
-    const radioYes = document.getElementById('ev-recur-yes');
-    if (radioNone) radioNone.checked = !isRecurring;
-    if (radioYes) radioYes.checked = isRecurring;
-    const recurOpts = document.getElementById('ev-recurring-opts');
-    if (recurOpts) recurOpts.style.display = isRecurring ? 'block' : 'none';
-    if (isRecurring) {
-      document.querySelectorAll('#ev-freq-row .type-chip').forEach(c =>
-        c.classList.toggle('active', c.dataset.freq === (ev.frequency||'weekly')));
-      const endEl = document.getElementById('ev-series-end');
-      if (endEl) endEl.value = ev.seriesEnd || '';
-    }
-    // Show series options if recurring
-    const seriesOpts = document.getElementById('series-opts');
-    if (seriesOpts) seriesOpts.classList.toggle('open', !!ev.seriesId);
-    document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>{c.classList.remove('active');if(c.dataset.type===ev.type)c.classList.add('active');});
-    // Timetable section for school activities
-    const isSchool = ev.type==='school';
-    document.getElementById('ev-timetable-section').style.display=isSchool?'block':'none';
-    if(isSchool){
-      const jsDay=dayIdx===7?0:dayIdx;
-      const tt=timetable[dayKeyMap[jsDay]]||{subjects:[],kit:[]};
-      document.getElementById('ev-subjects').value=(tt.subjects||[]).join(', ');
-      // Set kit chips
-      const kitRow=document.getElementById('ev-kit-row');
-      kitRow.querySelectorAll('.tt-kit-chip:not(.add-kit-btn)').forEach(c=>{
-        c.classList.toggle('active',(tt.kit||[]).includes(c.textContent.trim()));
-      });
-    }
-  } else {
-    ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('ev-start').value='';document.getElementById('ev-end').value='';
-    const _rn=document.getElementById('ev-recur-none');if(_rn)_rn.checked=true;
-    const _dr=document.getElementById('ev-date-row');if(_dr)_dr.style.display='none';
-    const _di=document.getElementById('ev-date');if(_di)_di.value='';
-    const _ry=document.getElementById('ev-recur-yes');if(_ry)_ry.checked=false;
-    const _ro=document.getElementById('ev-recurring-opts');if(_ro)_ro.style.display='none';
-    setEventIcon('🎯');
-    document.getElementById('series-opts').classList.remove('open');
-    document.querySelectorAll('#event-editor-overlay .type-chip').forEach((c,i)=>c.classList.toggle('active',i===0));
-    document.getElementById('ev-timetable-section').style.display='none';
-  }
-  // Show/hide timetable section when type changes
-  document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>{
-    c.onclick=function(){
-      selectType(this);
-      document.getElementById('ev-timetable-section').style.display=this.dataset.type==='school'?'block':'none';
-    };
-  });
-  document.getElementById('event-editor-overlay').classList.add('open');
-}
-
-function addKitToEvent(){
-  const val=prompt('Kit item:');if(!val||!val.trim())return;
-  const row=document.getElementById('ev-kit-row');
-  const chip=document.createElement('span');
-  chip.className='tt-kit-chip active';
-  chip.textContent=val.trim();
-  chip.onclick=()=>chip.classList.toggle('active');
-  row.insertBefore(chip,row.querySelector('.add-kit-btn'));
-}
-
-function closeEventEditor(){document.getElementById('event-editor-overlay').classList.remove('open');}
-
-function selectType(el){
-  document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));
+function selectFreq(el) {
+  document.querySelectorAll('#ev-freq-row .type-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
-  const type = el.dataset.type;
-  const dateRow = document.getElementById('ev-date-row');
-  const singleWrap = document.getElementById('ev-date-single-wrap');
-  const rangeWrap = document.getElementById('ev-date-range-wrap');
-  if (type === 'birthday') {
-    if (dateRow) dateRow.style.display = 'block';
-    if (singleWrap) singleWrap.style.display = 'block';
-    if (rangeWrap) rangeWrap.style.display = 'none';
-    const rn = document.getElementById('ev-recur-none');
-    if (rn) rn.checked = true;
-    const ro = document.getElementById('ev-recurring-opts');
-    if (ro) ro.style.display = 'none';
-  } else if (type === 'multiday') {
-    if (dateRow) dateRow.style.display = 'block';
-    if (singleWrap) singleWrap.style.display = 'none';
-    if (rangeWrap) rangeWrap.style.display = 'block';
-    const rn = document.getElementById('ev-recur-none');
-    if (rn) rn.checked = true;
-    const ro = document.getElementById('ev-recurring-opts');
-    if (ro) ro.style.display = 'none';
-  } else {
-    if (dateRow) dateRow.style.display = 'none';
-  }
+  const drow = document.getElementById('ev-days-of-week-row');
+  if (drow) drow.style.display = el.dataset.freq==='weekly'?'block':'none';
+}
+function toggleDow(el) { el.classList.toggle('active'); }
+function getSelectedDow() {
+  return Array.from(document.querySelectorAll('#ev-days-of-week-row .type-chip.active')).map(c=>parseInt(c.dataset.dow));
 }
 
+function openEventEditor(dateContext, actId) {
+  editingDateContext = dateContext;
+  editingActivityId = actId;
+  seriesEditMode = null;
+  const isNew = actId === null;
+  document.getElementById('event-editor-title').textContent = isNew ? 'Add activity' : 'Edit activity';
+  document.getElementById('btn-delete-event').style.display = isNew ? 'none' : 'block';
+  document.getElementById('emoji-picker').className = 'emoji-picker';
+  document.querySelectorAll('.series-mode-label').forEach(e=>e.remove());
+  ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('ev-start').value=''; document.getElementById('ev-end').value='';
+  setEventIcon('🎯');
+  document.getElementById('series-opts').classList.remove('open');
+  document.getElementById('ev-timetable-section').style.display='none';
+  document.querySelectorAll('#ev-type-row .type-chip').forEach((c,i)=>c.classList.toggle('active',i===0));
+  document.querySelectorAll('#ev-freq-row .type-chip').forEach((c,i)=>c.classList.toggle('active',i===1));
+  document.querySelectorAll('#ev-days-of-week-row .type-chip').forEach(c=>c.classList.remove('active'));
 
-function saveEvent(){
+  if (isNew) {
+    document.querySelector('input[name="ev-schedule-type"][value="oneoff"]').checked = true;
+    onScheduleTypeChange();
+    if (dateContext) {
+      document.getElementById('ev-date-oneoff').value = dateContext;
+      document.getElementById('ev-date-from').value = dateContext;
+      document.getElementById('ev-recur-start').value = dateContext;
+    }
+  } else {
+    const act = activities.find(a=>a.id===actId);
+    if (!act) { closeEventEditor(); return; }
+    document.getElementById('ev-title').value = act.title||'';
+    document.getElementById('ev-start').value = act.startTime||'';
+    document.getElementById('ev-end').value = act.endTime||'';
+    document.getElementById('ev-location').value = act.location||'';
+    document.getElementById('ev-notes').value = act.notes||'';
+    document.getElementById('ev-drop').value = act.drop||'';
+    document.getElementById('ev-pick').value = act.pick||'';
+    setEventIcon(act.icon || autoIconFor(act.title) || '🎯');
+    document.querySelectorAll('#ev-type-row .type-chip').forEach(c=>c.classList.toggle('active',c.dataset.type===act.type));
+    if (act.type==='school') document.getElementById('ev-timetable-section').style.display='block';
+    const sched = act.scheduleType||'oneoff';
+    document.querySelector(`input[name="ev-schedule-type"][value="${sched}"]`).checked = true;
+    onScheduleTypeChange();
+    if (sched==='oneoff') { document.getElementById('ev-date-oneoff').value=act.date||''; }
+    else if (sched==='multiday') {
+      document.getElementById('ev-date-from').value=act.dateFrom||'';
+      document.getElementById('ev-date-to').value=act.dateTo||'';
+    } else if (sched==='recurring') {
+      const r=act.recurrence||{};
+      document.querySelectorAll('#ev-freq-row .type-chip').forEach(c=>c.classList.toggle('active',c.dataset.freq===(r.frequency||'weekly')));
+      const drow=document.getElementById('ev-days-of-week-row');
+      if(drow) drow.style.display=(r.frequency||'weekly')==='weekly'?'block':'none';
+      (r.daysOfWeek||[]).forEach(d=>{const chip=document.querySelector(`#ev-days-of-week-row [data-dow="${d}"]`);if(chip)chip.classList.add('active');});
+      document.getElementById('ev-recur-start').value=r.startDate||'';
+      document.getElementById('ev-recur-end').value=r.endDate||'';
+      document.getElementById('series-opts').classList.add('open');
+    }
+  }
+  document.getElementById('event-editor-overlay').classList.add('open');
+  setTimeout(()=>{const t=document.getElementById('ev-title');if(t)t.focus();},300);
+}
+
+function closeEventEditor(){ document.getElementById('event-editor-overlay').classList.remove('open'); }
+
+function setSeriesEditMode(mode) {
+  seriesEditMode=mode;
+  document.getElementById('series-opts').classList.remove('open');
+  const label=mode==='occurrence'?'📅 Editing just this occurrence':'📅 Editing this and all future';
+  const div=document.createElement('div');
+  div.style.cssText='font-size:12px;color:var(--sophia);font-weight:500;margin-bottom:10px;padding:6px 10px;background:var(--sophia-light);border-radius:8px';
+  div.textContent=label;div.className='series-mode-label';
+  const body=document.querySelector('.event-editor-body');
+  const ex=body?body.querySelector('.series-mode-label'):null;
+  if(ex)ex.remove();
+  if(body)body.insertBefore(div,body.children[1]);
+}
+
+function saveEvent() {
   const title=document.getElementById('ev-title').value.trim();
   if(!title){document.getElementById('ev-title').focus();return;}
-  const start=document.getElementById('ev-start').value;
-  const end=document.getElementById('ev-end').value;
+  const schedType=document.querySelector('input[name="ev-schedule-type"]:checked')?.value||'oneoff';
+  const type=(document.querySelector('#ev-type-row .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
+  const icon=getEventIcon();
+  const startTime=document.getElementById('ev-start').value;
+  const endTime=document.getElementById('ev-end').value;
   const location=document.getElementById('ev-location').value.trim();
   const notes=document.getElementById('ev-notes').value.trim();
   const drop=document.getElementById('ev-drop').value.trim();
   const pick=document.getElementById('ev-pick').value.trim();
-  const type=(document.querySelector('#event-editor-overlay .type-chip.active')||{dataset:{type:'activity'}}).dataset.type;
-  const icon=getEventIcon();
-  const evDate=document.getElementById('ev-date')?.value||null;
-  const evDateFrom=document.getElementById('ev-date-from')?.value||null;
-  const evDateTo=document.getElementById('ev-date-to')?.value||null;
-  const isRecurring=document.querySelector('input[name="ev-recur-radio"]:checked')?.value==='recurring';
-  const frequency = isRecurring ? getFrequency() : null;
-  const seriesEnd = isRecurring ? (document.getElementById('ev-series-end').value||null) : null;
-  const time=start?(end?`${start}–${end}`:start):'';
-  const detail=[location,notes].filter(Boolean).join(' · ');
 
-  if(!weekData[editingDay])weekData[editingDay]=[];
+  const act={id:editingActivityId||('act_'+Date.now()),title,type,icon,startTime,endTime,location,notes,drop,pick,scheduleType:schedType};
 
-  if(editingIdx===null){
-    // New event
-    const seriesId = isRecurring ? ('s_'+Date.now()) : null;
-    // For one-off events, store the actual calendar date so they don't repeat every week
-    const specificDate = (!isRecurring && editingWeekDate) ? editingWeekDate : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,
-              date:evDate,dateFrom:evDateFrom,dateTo:evDateTo,specificDate};
-    weekData[editingDay].push(ev);
-  } else {
-    const existing = weekData[editingDay][editingIdx];
-    const seriesId = isRecurring ? (existing.seriesId || 's_'+Date.now()) : null;
-    const ev={title,time,detail,type,icon,drop,pick,seriesId,frequency,seriesEnd,date:evDate,dateFrom:evDateFrom,dateTo:evDateTo};
-
-    if(existing.seriesId && seriesEditMode === 'occurrence'){
-      // Only edit this one — add override flag
-      ev.seriesOverride = true;
-      ev.seriesId = existing.seriesId; // keep series link for reference
-      weekData[editingDay][editingIdx]=ev;
-    } else if(existing.seriesId && seriesEditMode === 'future'){
-      // Edit this and all future days with same seriesId
-      for(let d=1;d<=7;d++){
-        if(!weekData[d])continue;
-        weekData[d].forEach((e,i)=>{
-          if(e.seriesId===existing.seriesId && d>=editingDay){
-            weekData[d][i]={...ev, seriesId:existing.seriesId};
-          }
-        });
-      }
-    } else {
-      // No series or edit all
-      if(existing.seriesId && !seriesEditMode){
-        // Edit all occurrences of this series
-        for(let d=1;d<=7;d++){
-          if(!weekData[d])continue;
-          weekData[d].forEach((e,i)=>{
-            if(e.seriesId===existing.seriesId) weekData[d][i]={...ev,seriesId:existing.seriesId};
-          });
-        }
-      } else {
-        weekData[editingDay][editingIdx]=ev;
-      }
-    }
+  if(schedType==='oneoff') { act.date=document.getElementById('ev-date-oneoff').value; }
+  else if(schedType==='multiday') {
+    act.dateFrom=document.getElementById('ev-date-from').value;
+    act.dateTo=document.getElementById('ev-date-to').value;
+  } else if(schedType==='recurring') {
+    const freq=(document.querySelector('#ev-freq-row .type-chip.active')||{dataset:{freq:'weekly'}}).dataset.freq;
+    const startDate=document.getElementById('ev-recur-start').value;
+    const endDate=document.getElementById('ev-recur-end').value;
+    let daysOfWeek=freq==='weekly'?getSelectedDow():[];
+    if(freq==='weekly'&&!daysOfWeek.length&&startDate) daysOfWeek.push(dowOf(startDate));
+    act.recurrence={frequency:freq,startDate,endDate:endDate||null,daysOfWeek};
   }
 
-  // Save timetable if school
-  if(type==='school'){
-    const jsDay=editingDay===7?0:editingDay;
-    const key=dayKeyMap[jsDay];
-    const subjects=document.getElementById('ev-subjects').value.split(',').map(s=>s.trim()).filter(Boolean);
+  // Save timetable for school recurring
+  if(type==='school'&&schedType==='recurring') {
+    const subjects=(document.getElementById('ev-subjects')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
     const kit=Array.from(document.querySelectorAll('#ev-kit-row .tt-kit-chip.active:not(.add-kit-btn)')).map(c=>c.textContent.trim());
-    timetable[key]={subjects,kit};
-    const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    s.timetable=timetable;localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
+    const r=act.recurrence;
+    if(r&&r.daysOfWeek) r.daysOfWeek.forEach(d=>{const key=['','mon','tue','wed','thu','fri','sat','sun'][d];if(key)timetable[key]={subjects,kit};});
+    const sv=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+    sv.timetable=timetable;localStorage.setItem(STORAGE_KEY,JSON.stringify(sv));
   }
-  // For multi-day events, ensure they appear in all day slots
-  if (type === 'multiday' && evDateFrom && evDateTo) {
-    const from = new Date(evDateFrom); const to = new Date(evDateTo);
-    const ev_md = {title,time,detail,type,icon,drop,pick,seriesId:null,
-                   dateFrom:evDateFrom,dateTo:evDateTo,specificDate:null};
-    for (let d=1; d<=7; d++) {
-      if (!weekData[d]) weekData[d] = [];
-      // Remove any existing entry with same dateFrom
-      weekData[d] = weekData[d].filter(e => !(e.type==='multiday' && e.dateFrom===evDateFrom));
-      weekData[d].push({...ev_md});
+
+  if(editingActivityId===null) {
+    activities.push(act);
+  } else {
+    const idx=activities.findIndex(a=>a.id===editingActivityId);
+    if(idx>=0) {
+      if(seriesEditMode==='occurrence') {
+        const orig=activities[idx];
+        if(!orig.overrides)orig.overrides={};
+        orig.overrides[editingDateContext]={...act,id:orig.id};
+        activities[idx]=orig;
+      } else {
+        activities[idx]=act;
+      }
     }
   }
-  saveWeekDataToStorage();
-  closeEventEditor();renderWeek();renderToday();
+  saveActivities();closeEventEditor();renderWeek();renderToday();
 }
 
-function deleteEvent(){
-  if(editingIdx===null)return;
+function deleteEvent() {
+  if(!editingActivityId)return;
   if(!confirm('Delete this activity?'))return;
-  weekData[editingDay].splice(editingIdx,1);
-  saveWeekDataToStorage();closeEventEditor();renderWeek();renderToday();
+  const idx=activities.findIndex(a=>a.id===editingActivityId);
+  if(idx>=0)activities.splice(idx,1);
+  saveActivities();closeEventEditor();renderWeek();renderToday();
 }
 
-function saveWeekDataToStorage(){
-  const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  s.weekData=weekData;
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
-  saveAppData();
+function saveActivities() { saveAppData(); }
+function saveWeekDataToStorage() { /* activities array is source of truth */ }
+
+function addKitToEvent(){
+  const val=prompt('Kit item:');if(!val||!val.trim())return;
+  const row=document.getElementById('ev-kit-row');
+  const chip=document.createElement('span');chip.className='tt-kit-chip active';chip.textContent=val.trim();
+  chip.onclick=()=>chip.classList.toggle('active');
+  row.insertBefore(chip,row.querySelector('.add-kit-btn'));
 }
 
+function selectType(el){
+  document.querySelectorAll('#event-editor-overlay .type-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('ev-timetable-section').style.display=el.dataset.type==='school'?'block':'none';
+}
 // ═══════════════════════════════════
 // SHOPPING
 // ═══════════════════════════════════
