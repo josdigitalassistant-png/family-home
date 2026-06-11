@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.6 -->
+<!-- Family Home App v1.7.7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -75,12 +75,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .pickup-banner .icon{font-size:22px}
 .pickup-banner p{font-size:13px;font-weight:500;color:var(--dark)}
 .pickup-banner span{font-size:12px;color:var(--text-secondary)}
-.event-card{background:var(--white);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3.5px solid var(--sophia);box-shadow:var(--shadow);display:flex;gap:12px;align-items:flex-start}
-.event-card.jo{border-left-color:var(--jo)}
-.event-card.partner{border-left-color:var(--partner)}
-.event-card.family{border-left-color:var(--family)}
-.event-card.betreuung{border-left-color:var(--betreuung)}
-.event-time{font-size:11px;font-weight:600;color:var(--text-secondary);min-width:46px;padding-top:1px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.event-card{border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3.5px solid var(--sophia);box-shadow:var(--shadow);display:grid;grid-template-columns:36px 54px 1fr;gap:8px;align-items:flex-start}
+.event-card.jo{border-left-color:var(--jo);background:var(--jo-light)}
+.event-card.partner{border-left-color:var(--partner);background:var(--partner-light)}
+.event-card.family{border-left-color:var(--family);background:var(--family-light)}
+.event-card.betreuung{border-left-color:var(--betreuung);background:var(--betreuung-light)}
+.event-card.birthday{border-left-color:#DB2777;background:#FDF2F8}
+.event-card.activity{border-left-color:#D97706;background:#FFFBEB}
+.event-card.school{border-left-color:var(--sophia);background:var(--sophia-light)}
+.event-time{font-size:11px;font-weight:600;color:var(--text-secondary);padding-top:2px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.event-icon-col{display:flex;align-items:flex-start;padding-top:1px;font-size:22px}
 .event-info{flex:1}
 .event-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px}
 .event-meta{font-size:12px;color:var(--text-secondary)}
@@ -388,7 +392,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.6</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.7</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -609,7 +613,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.6</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.7</div>
   </div>
 </div>
 
@@ -646,15 +650,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         <div class="field-label">Date</div>
         <input class="field-input" id="ev-date" type="date">
       </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
-        <div style="flex:1">
-          <div class="field-label" style="margin-bottom:4px">Start</div>
-          <input class="field-input" id="ev-start" type="time" style="padding:8px 10px;font-size:13px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <div class="field-label" style="margin-bottom:4px">Start time</div>
+          <input class="field-input" id="ev-start" type="time" style="width:100%;padding:8px 10px;font-size:13px">
         </div>
-        <div style="padding-bottom:9px;color:var(--text-secondary);font-size:16px;font-weight:300">→</div>
-        <div style="flex:1">
-          <div class="field-label" style="margin-bottom:4px">End</div>
-          <input class="field-input" id="ev-end" type="time" style="padding:8px 10px;font-size:13px">
+        <div>
+          <div class="field-label" style="margin-bottom:4px">End time</div>
+          <input class="field-input" id="ev-end" type="time" style="width:100%;padding:8px 10px;font-size:13px">
         </div>
       </div>
       <div class="field-group">
@@ -741,7 +744,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.6';
+const APP_VERSION = '1.7.7';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1059,12 +1062,12 @@ function setSyncLive() {
   hideReconnectBanner();
   const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live';
   const t=document.getElementById('topbar-sync');
-  if(t) t.textContent='Synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  if(t) t.textContent=`Synced ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
 }
 function setSyncError() {
   const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error';
   const t=document.getElementById('topbar-sync');
-  if(t) t.textContent='Sync failed ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  if(t) t.textContent=`Sync failed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
 }
 
 // ═══════════════════════════════════
@@ -1273,13 +1276,17 @@ function renderToday() {
   } else {
     todayEvents.forEach(ev=>{
       const card=document.createElement('div');
-      card.className='event-card '+(ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
+      const _cardType = ev.type||'activity';
+      card.className='event-card '+_cardType;
       const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
       const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
       const _icon = ev.icon||autoIconFor(ev.title)||'';
       const _timeParts = (ev.time||'').split('–');
-      const _timeDisplay = _timeParts[1] ? `${_timeParts[0]}<span style='font-weight:300;color:var(--border)'>–</span>${_timeParts[1]}` : _timeParts[0]||'';
-      card.innerHTML=`<div class="event-time">${_timeDisplay}${_icon?`<span style='font-size:18px'>${_icon}</span>`:''}</div>
+      const _startTime = _timeParts[0]||'';
+      const _endTime = _timeParts[1]||'';
+      card.innerHTML=`
+        <div class="event-icon-col">${_icon||'&nbsp;'}</div>
+        <div class="event-time">${_startTime?`<span>${_startTime}</span>`:''}${_endTime?`<span style="font-weight:400">${_endTime}</span>`:''}</div>
         <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div>${subjectLine}</div>
 `;
       todayEl.appendChild(card);
@@ -1295,9 +1302,10 @@ function renderToday() {
       if(count>=3)return;
       const d=new Date(now);d.setDate(d.getDate()+offset);
       const card=document.createElement('div');
-      card.className='event-card '+(ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
-      card.innerHTML=`<div class="event-time">${d.toLocaleDateString('en-GB',{weekday:'short'})}</div>
-        <div class="event-info"><div class="event-title">${ev.icon||autoIconFor(ev.title)?`<span style='margin-right:4px'>${ev.icon||autoIconFor(ev.title)}</span>`:'' }${ev.title}</div><div class="event-meta">${ev.detail||''}</div></div>`;
+      const _cardType = ev.type||'activity';
+      card.className='event-card '+_cardType;
+      const _uicon=ev.icon||autoIconFor(ev.title)||'';
+      card.innerHTML=`<div class="event-icon-col">${_uicon||'&nbsp;'}</div><div class="event-time">${d.toLocaleDateString('en-GB',{weekday:'short'})}</div><div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div></div>`;
       upcomingEl.appendChild(card);count++;
     });
   }
