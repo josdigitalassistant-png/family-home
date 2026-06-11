@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.1 -->
+<!-- Family Home App v1.8.2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.1</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.2</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -668,7 +668,27 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.1</div>
+    <div class="settings-section" style="margin-top:8px">
+      <div class="settings-section-label">Data</div>
+      <div class="settings-card">
+        <div class="settings-row" onclick="closeSettings();switchTab('contacts')">
+          <div class="settings-row-icon">📞</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Contacts</div>
+            <div class="settings-row-sub">View and edit all contacts</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" onclick="resetAllActivities()">
+          <div class="settings-row-icon">🗑️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">Reset all activities</div>
+            <div class="settings-row-sub">Clear all week view entries and start fresh</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.2</div>
   </div>
 </div>
 
@@ -814,7 +834,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1284,6 +1304,7 @@ async function saveAppData() {
     // Normalise weekData keys to numbers before saving
     const normWeekData = {};
     for(let k in weekData) normWeekData[parseInt(k)||k] = weekData[k];
+    const _sv = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
     const state = {
       version: APP_VERSION,
       weekData: normWeekData,
@@ -1292,6 +1313,8 @@ async function saveAppData() {
       contacts: contactsData,
       payments: payments,
       timetable: timetable,
+      ttValidFrom: _sv.ttValidFrom||null,
+      ttValidTo: _sv.ttValidTo||null,
       updatedAt: new Date().toISOString()
     };
     await sheetsUpdate(APP_DATA_RANGE, [[JSON.stringify(state)]]);
@@ -1312,6 +1335,12 @@ function applyAppState(remote) {
   if (remote.contacts) { for(let k in remote.contacts) contactsData[k]=remote.contacts[k]; }
   if (remote.payments) { payments.length=0; remote.payments.forEach(p=>payments.push(p)); }
   if (remote.timetable) { for(let k in remote.timetable) timetable[k]=remote.timetable[k]; }
+  if (remote.ttValidFrom !== undefined) {
+    const _sv2 = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+    _sv2.ttValidFrom = remote.ttValidFrom;
+    _sv2.ttValidTo = remote.ttValidTo;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_sv2));
+  }
   // Cache locally
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   Object.assign(s, {weekData,shopping:[...shopping],tasks:[...tasks],
@@ -1521,9 +1550,13 @@ function renderWeek(){
     if (ev.type === 'birthday' && ev.date) {
       return ev.date.substring(5) === _sdStr.substring(5);
     }
-    // Multi-day: show if current date falls within dateFrom–dateTo
+    // Multi-day: show if current date falls within dateFrom–dateTo (inclusive)
     if (ev.type === 'multiday' && ev.dateFrom && ev.dateTo) {
-      return _sdStr >= ev.dateFrom && _sdStr <= ev.dateTo;
+      // Parse as local dates to avoid UTC offset issues
+      const _from = ev.dateFrom.replace(/-/g,'/');
+      const _to = ev.dateTo.replace(/-/g,'/');
+      const _cur = _sdStr.replace(/-/g,'/');
+      return _cur >= _from && _cur <= _to;
     }
     // One-off with specificDate: only show on that exact date
     if (ev.specificDate && !ev.seriesId) {
