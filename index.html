@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.9.0 -->
+<!-- Family Home App v1.9.2 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.9.0</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.9.2</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -656,6 +656,26 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       </div>
     </div>
     <div class="settings-section" style="margin-top:8px">
+      <div class="settings-section-label">AI Timetable Upload</div>
+      <div class="settings-card">
+        <div style="padding:14px 16px">
+          <div class="settings-row-title" style="margin-bottom:6px">Anthropic API Key</div>
+          <div class="settings-row-sub" style="margin-bottom:10px">Stored locally on this device only — never uploaded to GitHub</div>
+          <input id="anthropic-key-input" type="password" class="field-input"
+            placeholder="sk-ant-api03-..."
+            style="width:100%;margin-bottom:8px"
+            value="">
+          <button onclick="saveAnthropicKeyFromSettings()"
+            style="width:100%;padding:10px;background:var(--sophia);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+            Save key
+          </button>
+          <div id="key-saved-msg" style="display:none;font-size:12px;color:var(--sophia);margin-top:6px;text-align:center">✓ Key saved to this device</div>
+        </div>
+      </div>
+    <div style="display:none"><!-- close account card -->
+      </div>
+    </div>
+    <div class="settings-section" style="margin-top:8px">
       <div class="settings-section-label">Data</div>
       <div class="settings-card">
         <div class="settings-row" onclick="closeSettings();switchTab('contacts')">
@@ -675,7 +695,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.9.0</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.9.2</div>
   </div>
 </div>
 
@@ -793,9 +813,30 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
-const ANTHROPIC_KEY = '';
+const ANTHROPIC_KEY = ''; // key loaded from localStorage at runtime — see getAnthropicKey()
 const CLAUDE_MODEL = 'claude-sonnet-4-5';
-const APP_VERSION = '1.9.0';
+
+function saveAnthropicKeyFromSettings() {
+  const input = document.getElementById('anthropic-key-input');
+  if (!input) return;
+  const key = input.value.trim();
+  if (!key) { alert('Please enter an API key'); return; }
+  saveAnthropicKey(key);
+  input.value = ''; // clear from UI for security
+  const msg = document.getElementById('key-saved-msg');
+  if (msg) { msg.style.display='block'; setTimeout(()=>msg.style.display='none', 3000); }
+}
+
+function getAnthropicKey() {
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  return s.anthropicKey || '';
+}
+function saveAnthropicKey(key) {
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  s.anthropicKey = key.trim();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+const APP_VERSION = '1.9.2';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1300,15 +1341,15 @@ function openEventEditor(dateContext, actId) {
   ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ev-start').value=''; document.getElementById('ev-end').value='';
   setEventIcon('🎯');
-  document.getElementById('series-opts').classList.remove('open');
-  document.getElementById('ev-timetable-section').style.display='none';
+  const _so=document.getElementById('series-opts');if(_so)_so.classList.remove('open');
+  const _ts=document.getElementById('ev-timetable-section');if(_ts)_ts.style.display='none';
   document.querySelectorAll('#ev-type-row .type-chip').forEach((c,i)=>c.classList.toggle('active',i===0));
   document.querySelectorAll('#ev-freq-row .type-chip').forEach((c,i)=>c.classList.toggle('active',i===1));
   document.querySelectorAll('#ev-days-of-week-row .type-chip').forEach(c=>c.classList.remove('active'));
 
   if (isNew) {
-    document.querySelector('input[name="ev-schedule-type"][value="oneoff"]').checked = true;
-    onScheduleTypeChange();
+    const _r = document.querySelector('input[name="ev-schedule-type"][value="oneoff"]');
+    if (_r) { _r.checked = true; onScheduleTypeChange(); }
     if (dateContext) {
       document.getElementById('ev-date-oneoff').value = dateContext;
       document.getElementById('ev-date-from').value = dateContext;
@@ -1328,8 +1369,8 @@ function openEventEditor(dateContext, actId) {
     document.querySelectorAll('#ev-type-row .type-chip').forEach(c=>c.classList.toggle('active',c.dataset.type===act.type));
     if (act.type==='school') document.getElementById('ev-timetable-section').style.display='block';
     const sched = act.scheduleType||'oneoff';
-    document.querySelector(`input[name="ev-schedule-type"][value="${sched}"]`).checked = true;
-    onScheduleTypeChange();
+    const _rs = document.querySelector(`input[name="ev-schedule-type"][value="${sched}"]`);
+    if (_rs) { _rs.checked = true; onScheduleTypeChange(); }
     if (sched==='oneoff') { document.getElementById('ev-date-oneoff').value=act.date||''; }
     else if (sched==='multiday') {
       document.getElementById('ev-date-from').value=act.dateFrom||'';
@@ -1353,7 +1394,7 @@ function closeEventEditor(){ document.getElementById('event-editor-overlay').cla
 
 function setSeriesEditMode(mode) {
   seriesEditMode=mode;
-  document.getElementById('series-opts').classList.remove('open');
+  const _so=document.getElementById('series-opts');if(_so)_so.classList.remove('open');
   const label=mode==='occurrence'?'📅 Editing just this occurrence':'📅 Editing this and all future';
   const div=document.createElement('div');
   div.style.cssText='font-size:12px;color:var(--sophia);font-weight:500;margin-bottom:10px;padding:6px 10px;background:var(--sophia-light);border-radius:8px';
@@ -1778,6 +1819,13 @@ function openSettings(){
   document.getElementById('settings-overlay').classList.add('open');
   document.getElementById('tt-editor-wrap').style.display='none';
   updateTTStatus();
+  // Show whether key is set
+  const keyInput = document.getElementById('anthropic-key-input');
+  if (keyInput) {
+    const existing = getAnthropicKey();
+    keyInput.placeholder = existing ? '✓ Key saved — enter new key to replace' : 'sk-ant-api03-...';
+    keyInput.value = '';
+  }
 }
 function closeSettings(){document.getElementById('settings-overlay').classList.remove('open');}
 
