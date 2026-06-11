@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.2 -->
+<!-- Family Home App v1.8.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.2</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.3</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -666,19 +666,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
           </div>
           <div class="settings-row-arrow">›</div>
         </div>
-      </div>
-    </div>
-    <div class="settings-section" style="margin-top:8px">
-      <div class="settings-section-label">Data</div>
-      <div class="settings-card">
-        <div class="settings-row" onclick="closeSettings();switchTab('contacts')">
-          <div class="settings-row-icon">📞</div>
-          <div class="settings-row-info">
-            <div class="settings-row-title">Contacts</div>
-            <div class="settings-row-sub">View and edit all contacts</div>
-          </div>
-          <div class="settings-row-arrow">›</div>
-        </div>
         <div class="settings-row" onclick="resetAllActivities()">
           <div class="settings-row-icon">🗑️</div>
           <div class="settings-row-info">
@@ -688,7 +675,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.2</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.3</div>
   </div>
 </div>
 
@@ -834,7 +821,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.8.3';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -928,13 +915,7 @@ const weekData = (function(){
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   if (s.weekData) return s.weekData;
   return {
-    1:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Jo'}],
-    2:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon · Lunch included',type:'betreuung',drop:'',pick:'Partner'}],
-    3:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Jo'},{title:'Swimming',time:'16:00–17:00',detail:'Hallenbad City · Swim kit needed',type:'school',drop:'Jo',pick:'Jo'}],
-    4:[{title:'School (full day)',time:'08:15–16:00',detail:'Primarschule Wiedikon',type:'school',drop:'Partner',pick:'Hort'},{title:'Betreuung / Hort',time:'12:00–18:00',detail:'Hort Wiedikon',type:'betreuung',drop:'',pick:'Jo'},{title:'Dentist — Sophia',time:'10:00–11:00',detail:'Dr. Meier, Zürich',type:'family',drop:'',pick:''}],
-    5:[{title:'School',time:'08:15–12:00',detail:'Primarschule Wiedikon',type:'school',drop:'Jo',pick:'Partner'}],
-    6:[{title:'Family time',time:'Morning',detail:'',type:'family',drop:'',pick:''}],
-    7:[{title:"Pack Sophia's bag",time:'Evening',detail:'Ready for Monday',type:'jo-event',drop:'',pick:''}]
+    1:[],2:[],3:[],4:[],5:[],6:[],7:[]
   };
 })();
 
