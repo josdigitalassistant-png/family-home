@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.8 -->
+<!-- Family Home App v1.8.0 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -63,7 +63,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .topbar-gear:hover{opacity:1}
 
 /* NAV */
-.section{display:none;padding:16px 16px 100px}
+.section{display:none;padding:16px 16px 40px}
 .section.active{display:block}
 .section-label{font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:0.8px;text-transform:uppercase;margin:20px 0 10px}
 
@@ -170,10 +170,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .contact-btn-empty{font-size:12px;color:var(--text-secondary);font-style:italic;padding:5px 0}
 
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--white);border-top:1px solid var(--border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.bottom-nav-btn{flex:1;padding:10px 4px 8px;font-size:10px;font-weight:500;color:var(--text-secondary);border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
-.bottom-nav-btn .bnav-icon{font-size:20px}
-.bottom-nav-btn.active{color:var(--sophia)}
+
 
 /* SETTINGS MODAL */
 .settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:none;align-items:flex-end;max-width:430px;margin:0 auto}
@@ -378,6 +375,63 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
   border-radius:20px;margin-top:4px;
 }
 
+
+/* ══ HAMBURGER MENU ══ */
+.hamburger {
+  background: none; border: none; cursor: pointer;
+  padding: 6px; color: #fff; font-size: 22px; line-height: 1;
+  display: flex; flex-direction: column; gap: 4px; justify-content: center;
+}
+.hamburger span {
+  display: block; width: 22px; height: 2px;
+  background: rgba(255,255,255,0.85); border-radius: 2px;
+  transition: all 0.25s;
+}
+.hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(4px,4px); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(4px,-4px); }
+
+.nav-dropdown {
+  position: fixed; top: 64px; left: 0; right: 0;
+  max-width: 430px; margin: 0 auto;
+  background: var(--dark);
+  z-index: 200;
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.3s ease, box-shadow 0.3s;
+  box-shadow: none;
+}
+.nav-dropdown.open {
+  max-height: 480px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.nav-dropdown-inner {
+  padding: 8px 0 16px;
+}
+.nav-menu-item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 24px; cursor: pointer;
+  color: rgba(255,255,255,0.75);
+  font-size: 15px; font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+  border-left: 3px solid transparent;
+}
+.nav-menu-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-menu-item.active {
+  color: #fff; border-left-color: var(--sophia);
+  background: rgba(0,155,141,0.12);
+}
+.nav-menu-icon { font-size: 22px; width: 28px; text-align: center; }
+.nav-menu-label { flex: 1; }
+.nav-overlay {
+  display: none; position: fixed; inset: 0;
+  z-index: 199; background: transparent;
+}
+.nav-overlay.open { display: block; }
+.topbar-tab-label {
+  font-size: 11px; color: rgba(255,255,255,0.5);
+  margin-top: 1px; letter-spacing: 0.3px;
+}
+
 </style>
 </head>
 <body>
@@ -391,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.8</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.0</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -406,7 +460,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div>
+    <button class="hamburger" id="hamburger-btn" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div style="flex:1;padding-left:4px">
       <div class="topbar-title">🏠 FiApp</div>
       <div class="topbar-sync" id="topbar-sync"></div>
     </div>
@@ -415,6 +472,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <button class="topbar-gear" onclick="openSettings()">⚙️</button>
       <div class="topbar-avatar">J</div>
     </div>
+  </div>
+
+  <!-- Nav dropdown -->
+  <div class="nav-overlay" id="nav-overlay" onclick="closeMenu()"></div>
+  <div class="nav-dropdown" id="nav-dropdown">
+    <div class="nav-dropdown-inner" id="nav-dropdown-inner"></div>
   </div>
 
   <!-- TODAY -->
@@ -520,14 +583,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div id="contacts-emergency"></div>
   </div>
 
-  <!-- BOTTOM NAV -->
-  <div class="bottom-nav">
-    <button class="bottom-nav-btn active" onclick="switchTab('today')" id="bnav-today"><span class="bnav-icon">☀️</span>Today</button>
-    <button class="bottom-nav-btn" onclick="switchTab('week')" id="bnav-week"><span class="bnav-icon">📅</span>Week</button>
-    <button class="bottom-nav-btn" onclick="switchTab('shopping')" id="bnav-shopping"><span class="bnav-icon">🛒</span>Shopping</button>
-    <button class="bottom-nav-btn" onclick="switchTab('tasks')" id="bnav-tasks"><span class="bnav-icon">✅</span>Tasks</button>
-    <button class="bottom-nav-btn" onclick="switchTab('money')" id="bnav-money"><span class="bnav-icon">💰</span>Money</button>
-  </div>
+
 </div>
 
 <!-- SETTINGS MODAL -->
@@ -612,7 +668,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.8</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.0</div>
   </div>
 </div>
 
@@ -743,7 +799,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.8';
+const APP_VERSION = '1.8.0';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1085,12 +1141,66 @@ function initApp() {
   renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
 }
 
+const NAV_TABS = [
+  {id:'today',    icon:'☀️',  label:'Today'},
+  {id:'week',     icon:'📅',  label:'Week'},
+  {id:'shopping', icon:'🛒',  label:'Shopping'},
+  {id:'tasks',    icon:'✅',  label:'Tasks'},
+  {id:'money',    icon:'💰',  label:'Money'},
+  {id:'contacts', icon:'📞',  label:'Contacts'},
+];
+
+let currentTab = 'today';
+
+function buildMenu() {
+  const inner = document.getElementById('nav-dropdown-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+  NAV_TABS.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'nav-menu-item' + (t.id === currentTab ? ' active' : '');
+    div.id = 'nav-item-' + t.id;
+    div.innerHTML = `<span class="nav-menu-icon">${t.icon}</span><span class="nav-menu-label">${t.label}</span>`;
+    div.onclick = () => { switchTab(t.id); closeMenu(); };
+    inner.appendChild(div);
+  });
+}
+
+function toggleMenu() {
+  const dd = document.getElementById('nav-dropdown');
+  const overlay = document.getElementById('nav-overlay');
+  const btn = document.getElementById('hamburger-btn');
+  const isOpen = dd.classList.contains('open');
+  if (isOpen) {
+    dd.classList.remove('open');
+    overlay.classList.remove('open');
+    btn.classList.remove('open');
+  } else {
+    buildMenu();
+    dd.classList.add('open');
+    overlay.classList.add('open');
+    btn.classList.add('open');
+  }
+}
+
+function closeMenu() {
+  document.getElementById('nav-dropdown').classList.remove('open');
+  document.getElementById('nav-overlay').classList.remove('open');
+  document.getElementById('hamburger-btn').classList.remove('open');
+}
+
 function switchTab(tab) {
-  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('sec-'+tab).classList.add('active');
-  document.getElementById('bnav-'+tab).classList.add('active');
-  if(tab==='money') renderMoney();
+  currentTab = tab;
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + tab).classList.add('active');
+  if (tab === 'money') renderMoney();
+  if (tab === 'contacts') renderContacts();
+  // Update sync line to show current tab
+  const syncEl = document.getElementById('topbar-sync');
+  // Update menu active state if open
+  document.querySelectorAll('.nav-menu-item').forEach(el => {
+    el.classList.toggle('active', el.id === 'nav-item-' + tab);
+  });
 }
 
 // ═══════════════════════════════════
