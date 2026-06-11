@@ -688,79 +688,80 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <button class="event-editor-close" onclick="closeEventEditor()">✕</button>
     </div>
     <div class="event-editor-body">
-      <!-- Series edit options (shown for recurring activities) -->
       <div class="series-opts" id="series-opts">
-        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">This is a recurring activity. Edit:</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">Recurring activity. Edit:</div>
         <button class="series-opt-btn" onclick="setSeriesEditMode('occurrence')">📅 Just this occurrence</button>
         <button class="series-opt-btn" onclick="setSeriesEditMode('future')">📅 This and all future</button>
       </div>
-
-      <!-- Icon + Title row -->
-      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:14px">
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px">
         <div style="flex-shrink:0">
-          <div class="field-label" style="margin-bottom:6px">Icon</div>
+          <div class="field-label" style="margin-bottom:4px">Icon</div>
           <div class="emoji-display" id="ev-icon-display" onclick="toggleEmojiPicker()" style="height:44px;width:44px;font-size:24px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer">🎯</div>
         </div>
         <div style="flex:1;min-width:0">
-          <div class="field-label" style="margin-bottom:6px">Activity name</div>
+          <div class="field-label" style="margin-bottom:4px">Activity name</div>
           <input class="field-input" id="ev-title" type="text" placeholder="e.g. Swimming" oninput="autoIcon(this.value)" style="height:44px">
         </div>
       </div>
       <div class="emoji-picker" id="emoji-picker"></div>
-
-      <div id="ev-date-row" style="display:none" class="field-group">
-        <div id="ev-date-single-wrap">
-          <div class="field-label">Date</div>
-          <input class="field-input" id="ev-date" type="date">
-        </div>
-        <div id="ev-date-range-wrap" style="display:none">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div>
-              <div class="field-label" style="margin-bottom:4px">From</div>
-              <input class="field-input" id="ev-date-from" type="date" style="width:100%;min-width:0;box-sizing:border-box">
+      <div class="field-group">
+        <div class="field-label">Schedule</div>
+        <div style="background:var(--bg);border-radius:10px;padding:12px;margin-top:6px">
+          <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="radio" name="ev-schedule-type" value="oneoff" checked onchange="onScheduleTypeChange()" style="cursor:pointer"> One-off</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="radio" name="ev-schedule-type" value="multiday" onchange="onScheduleTypeChange()" style="cursor:pointer"> Multi-day</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="radio" name="ev-schedule-type" value="recurring" onchange="onScheduleTypeChange()" style="cursor:pointer"> Recurring</label>
+          </div>
+          <div id="ev-sched-oneoff">
+            <div class="field-label" style="margin-bottom:4px">Date</div>
+            <input class="field-input" id="ev-date-oneoff" type="date" style="width:100%">
+          </div>
+          <div id="ev-sched-multiday" style="display:none">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><div class="field-label" style="margin-bottom:4px">From</div><input class="field-input" id="ev-date-from" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
+              <div><div class="field-label" style="margin-bottom:4px">To</div><input class="field-input" id="ev-date-to" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
             </div>
-            <div>
-              <div class="field-label" style="margin-bottom:4px">To</div>
-              <input class="field-input" id="ev-date-to" type="date" style="width:100%;min-width:0;box-sizing:border-box">
+          </div>
+          <div id="ev-sched-recurring" style="display:none">
+            <div class="field-label" style="margin-bottom:6px">Frequency</div>
+            <div class="event-type-row" id="ev-freq-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">
+              <span class="type-chip" data-freq="daily" onclick="selectFreq(this)">Daily</span>
+              <span class="type-chip active" data-freq="weekly" onclick="selectFreq(this)">Weekly</span>
+              <span class="type-chip" data-freq="monthly" onclick="selectFreq(this)">Monthly</span>
+              <span class="type-chip" data-freq="yearly" onclick="selectFreq(this)">Yearly</span>
+            </div>
+            <div id="ev-days-of-week-row" style="margin-bottom:10px">
+              <div class="field-label" style="margin-bottom:6px">Days of week</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <span class="type-chip" data-dow="1" onclick="toggleDow(this)">Mon</span>
+                <span class="type-chip" data-dow="2" onclick="toggleDow(this)">Tue</span>
+                <span class="type-chip" data-dow="3" onclick="toggleDow(this)">Wed</span>
+                <span class="type-chip" data-dow="4" onclick="toggleDow(this)">Thu</span>
+                <span class="type-chip" data-dow="5" onclick="toggleDow(this)">Fri</span>
+                <span class="type-chip" data-dow="6" onclick="toggleDow(this)">Sat</span>
+                <span class="type-chip" data-dow="7" onclick="toggleDow(this)">Sun</span>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><div class="field-label" style="margin-bottom:4px">Start date</div><input class="field-input" id="ev-recur-start" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
+              <div><div class="field-label" style="margin-bottom:4px">End date</div><input class="field-input" id="ev-recur-end" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
             </div>
           </div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;width:100%;box-sizing:border-box">
-        <div style="min-width:0">
-          <div class="field-label" style="margin-bottom:4px">Start time</div>
-          <input class="field-input" id="ev-start" type="time" style="width:100%;min-width:0;padding:8px 8px;font-size:13px;box-sizing:border-box">
-        </div>
-        <div style="min-width:0">
-          <div class="field-label" style="margin-bottom:4px">End time</div>
-          <input class="field-input" id="ev-end" type="time" style="width:100%;min-width:0;padding:8px 8px;font-size:13px;box-sizing:border-box">
-        </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;box-sizing:border-box">
+        <div style="min-width:0"><div class="field-label" style="margin-bottom:4px">Start time</div><input class="field-input" id="ev-start" type="time" style="width:100%;min-width:0;padding:8px;font-size:13px;box-sizing:border-box"></div>
+        <div style="min-width:0"><div class="field-label" style="margin-bottom:4px">End time</div><input class="field-input" id="ev-end" type="time" style="width:100%;min-width:0;padding:8px;font-size:13px;box-sizing:border-box"></div>
       </div>
-      <div class="field-group">
-        <div class="field-label">Location</div>
-        <input class="field-input" id="ev-location" type="text" placeholder="e.g. Hallenbad City">
+      <div class="field-group"><div class="field-label">Location</div><input class="field-input" id="ev-location" type="text" placeholder="e.g. Hallenbad City"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div><div class="field-label" style="margin-bottom:4px">Drop-off</div><input class="field-input" id="ev-drop" type="text" placeholder="e.g. Jo"></div>
+        <div><div class="field-label" style="margin-bottom:4px">Pick-up</div><input class="field-input" id="ev-pick" type="text" placeholder="e.g. Partner"></div>
       </div>
-      <div class="field-row">
-        <div class="field-group">
-          <div class="field-label">Drop-off</div>
-          <input class="field-input" id="ev-drop" type="text" placeholder="e.g. Jo">
-        </div>
-        <div class="field-group">
-          <div class="field-label">Pick-up</div>
-          <input class="field-input" id="ev-pick" type="text" placeholder="e.g. Partner">
-        </div>
-      </div>
-      <div class="field-group">
-        <div class="field-label">Notes</div>
-        <input class="field-input" id="ev-notes" type="text" placeholder="e.g. Bring swim kit">
-      </div>
+      <div class="field-group"><div class="field-label">Notes</div><input class="field-input" id="ev-notes" type="text" placeholder="e.g. Bring swim kit"></div>
       <div id="ev-timetable-section" style="display:none">
-        <div class="field-group">
-          <div class="field-label">Subjects <span style="font-weight:400;text-transform:none;font-size:10px;color:var(--text-secondary)">(comma separated)</span></div>
-          <input class="field-input" id="ev-subjects" type="text" placeholder="e.g. Deutsch, Mathe, Turnen">
-        </div>
-        <div class="field-group">
-          <div class="field-label">Kit needed</div>
+        <div class="field-group"><div class="field-label">Subjects</div><input class="field-input" id="ev-subjects" type="text" placeholder="e.g. Deutsch, Mathe"></div>
+        <div class="field-group"><div class="field-label">Kit needed</div>
           <div class="tt-kit-row" id="ev-kit-row">
             <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎽 Sports kit</span>
             <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🏊 Swim kit</span>
@@ -769,41 +770,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
           </div>
         </div>
       </div>
-      <div class="field-group">
-        <div class="field-label">Type</div>
+      <div class="field-group"><div class="field-label">Type</div>
         <div class="event-type-row" id="ev-type-row">
           <span class="type-chip active" data-type="school" onclick="selectType(this)">🎒 School</span>
           <span class="type-chip" data-type="betreuung" onclick="selectType(this)">🏠 Betreuung</span>
           <span class="type-chip" data-type="family" onclick="selectType(this)">👨‍👩‍👧 Family</span>
           <span class="type-chip" data-type="activity" onclick="selectType(this)">⭐ Activity</span>
           <span class="type-chip" data-type="birthday" onclick="selectType(this)">🎂 Birthday</span>
-          <span class="type-chip" data-type="multiday" onclick="selectType(this)">📆 Multi-day</span>
-        </div>
-      </div>
-      <div class="field-group">
-        <div class="field-label">Recurrence</div>
-        <div style="background:var(--bg);border-radius:10px;padding:12px;margin-top:6px">
-          <div style="display:flex;gap:16px;margin-bottom:12px">
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text)">
-              <input type="radio" name="ev-recur-radio" id="ev-recur-none" value="none" checked onchange="toggleRecurringOptions()" style="width:16px;height:16px;cursor:pointer">
-              One-off
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text)">
-              <input type="radio" name="ev-recur-radio" id="ev-recur-yes" value="recurring" onchange="toggleRecurringOptions()" style="width:16px;height:16px;cursor:pointer">
-              Recurring series
-            </label>
-          </div>
-          <div id="ev-recurring-opts" style="display:none">
-            <div class="field-label" style="margin-bottom:8px">Frequency</div>
-            <div class="event-type-row" id="ev-freq-row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">
-              <span class="type-chip" data-freq="daily" onclick="selectFreq(this)">Daily</span>
-              <span class="type-chip active" data-freq="weekly" onclick="selectFreq(this)">Weekly</span>
-              <span class="type-chip" data-freq="monthly" onclick="selectFreq(this)">Monthly</span>
-              <span class="type-chip" data-freq="yearly" onclick="selectFreq(this)">Yearly</span>
-            </div>
-            <div class="field-label" style="margin-bottom:6px">End date (optional)</div>
-            <input class="field-input" id="ev-series-end" type="date">
-          </div>
         </div>
       </div>
       <div class="editor-actions">
@@ -821,6 +794,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
+const CLAUDE_MODEL = 'claude-sonnet-4-5';
 const APP_VERSION = '1.9.0';
 
 const STORAGE_KEY = 'familyapp_v1';
@@ -1890,7 +1864,7 @@ async function readTimetableWithClaude(base64){
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,messages:[{role:'user',content:[
+    body:JSON.stringify({model:CLAUDE_MODEL,max_tokens:1024,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
       {type:'text',text:'Extract school timetable subjects per weekday. Return ONLY JSON: {"mon":{"subjects":[],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}} Add "🎽 Sports kit" if Turnen/Sport. Add "🎨 Art apron" if Kunst/Werken.'}
     ]}]})
