@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.8.6 -->
+<!-- Family Home App v1.8.7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,7 +445,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.6</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.8.7</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -675,7 +675,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.6</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.8.7</div>
   </div>
 </div>
 
@@ -821,7 +821,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.8.6';
+const APP_VERSION = '1.8.7';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -928,10 +928,9 @@ const WEEK_DAYS = [
 window.addEventListener('load', function(){
   const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   if (s.setupDone) {
-    // Restore cached token first so app loads immediately
     if (s.token) accessToken = s.token;
     showApp();
-    // Always do a silent sign-in to get a fresh token in background
+    // Get a fresh token silently — on success it will call loadAllSheets again
     silentSignIn();
   } else {
     document.getElementById('onboarding').style.display = 'flex';
@@ -1057,6 +1056,10 @@ function showApp() {
   document.getElementById('app').classList.add('ready');
   initApp();
   startAutoSync();
+  // Always attempt to load from sheet on show
+  if (accessToken) {
+    loadAllSheets();
+  }
 }
 
 let syncInterval = null;
@@ -1125,9 +1128,11 @@ function showSyncPulse() {
 function setSyncLive() {
   tokenExpiredAt = null;
   hideReconnectBanner();
-  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live';
+  const d=document.getElementById('sync-dot');
+  if(d) d.className='sync-dot live';
   const t=document.getElementById('topbar-sync');
   if(t) t.textContent=`Synced ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
+  else setTimeout(setSyncLive, 500); // retry if topbar not ready yet
 }
 function setSyncError() {
   const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error';
@@ -1314,12 +1319,8 @@ function applyAppState(remote) {
     _sv2.ttValidTo = remote.ttValidTo;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(_sv2));
   }
-  // Cache locally
-  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  Object.assign(s, {weekData,shopping:[...shopping],tasks:[...tasks],
-    contacts:JSON.parse(JSON.stringify(contactsData)),payments:[...payments],
-    timetable:JSON.parse(JSON.stringify(timetable))});
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  // Only cache auth/settings to localStorage, not app data
+  // AppData sheet is the single source of truth for app data
 }
 
 async function loadAllSheets() {
@@ -1496,7 +1497,8 @@ function renderWeek(){
   addBtn.className='btn-add-event';
   addBtn.title='Add activity';
   addBtn.textContent='+';
-  addBtn.onclick=(()=>{const di=selectedDay;return()=>openEventEditor(di,null);})();
+  const _addDay = selectedDay;
+  addBtn.onclick = function(){ openEventEditor(_addDay, null); };
   hdr.appendChild(addBtn);
   eventsEl.appendChild(hdr);
 
