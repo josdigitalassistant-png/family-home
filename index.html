@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v1.7.5 -->
+<!-- Family Home App v1.7.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -80,7 +80,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .event-card.partner{border-left-color:var(--partner)}
 .event-card.family{border-left-color:var(--family)}
 .event-card.betreuung{border-left-color:var(--betreuung)}
-.event-time{font-size:11px;font-weight:600;color:var(--text-secondary);min-width:46px;padding-top:1px}
+.event-time{font-size:11px;font-weight:600;color:var(--text-secondary);min-width:46px;padding-top:1px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
 .event-info{flex:1}
 .event-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px}
 .event-meta{font-size:12px;color:var(--text-secondary)}
@@ -206,25 +206,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 /* EVENT EDITOR */
 .event-editor-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:none;align-items:flex-end;max-width:430px;margin:0 auto}
 .event-editor-overlay.open{display:flex}
-.event-editor-sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:0 0 40px;position:relative;z-index:501}
+.event-editor-sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-height:82vh;overflow-y:auto;padding:0 0 24px;position:relative;z-index:501}
 .event-editor-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0}
-.event-editor-header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px 8px}
+.event-editor-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 6px}
 .event-editor-title{font-size:17px;font-weight:600;color:var(--text)}
 .event-editor-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary)}
-.event-editor-body{padding:8px 20px 16px}
-.field-group{margin-bottom:14px}
-.field-label{font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:6px}
-.field-input{width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;color:var(--text);background:var(--bg);outline:none;transition:border-color 0.15s}
+.event-editor-body{padding:6px 16px 12px}
+.field-group{margin-bottom:10px}
+.field-label{font-size:10px;font-weight:600;color:var(--text-secondary);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:4px}
+.field-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;color:var(--text);background:var(--bg);outline:none;transition:border-color 0.15s}
 .field-input:focus{border-color:var(--sophia);background:var(--white)}
 .field-row{display:flex;gap:10px}
 .field-row .field-group{flex:1}
 .event-type-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.type-chip{font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);cursor:pointer;background:var(--white);color:var(--text-secondary);transition:all 0.15s}
+.type-chip{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);cursor:pointer;background:var(--white);color:var(--text-secondary);transition:all 0.15s}
 .type-chip.active{border-color:var(--sophia);background:var(--sophia-light);color:var(--sophia)}
 .type-chip[data-type="betreuung"].active{border-color:var(--betreuung);background:var(--betreuung-light);color:var(--betreuung)}
 .type-chip[data-type="family"].active{border-color:var(--family);background:var(--family-light);color:var(--family)}
 .type-chip[data-type="jo-event"].active{border-color:var(--jo);background:var(--jo-light);color:var(--jo)}
-.editor-actions{display:flex;gap:8px;margin-top:16px}
+.editor-actions{display:flex;gap:8px;margin-top:12px}
 .btn-save{flex:1;padding:13px;background:var(--sophia);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
 .btn-delete{padding:13px 16px;background:none;color:#c00;border:1.5px solid #f0c0c0;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit}
 
@@ -388,7 +388,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="ob-title" style="font-size:42px;letter-spacing:-1.5px;margin-bottom:8px">FiApp</div>
     <div class="ob-sub" style="font-size:16px;margin-bottom:40px">Schedules, shopping &amp; other things</div>
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" disabled>Loading…</button>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.5</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v1.7.6</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -609,7 +609,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.5</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v1.7.6</div>
   </div>
 </div>
 
@@ -646,14 +646,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         <div class="field-label">Date</div>
         <input class="field-input" id="ev-date" type="date">
       </div>
-      <div class="field-row">
-        <div class="field-group">
-          <div class="field-label">Start time</div>
-          <input class="field-input" id="ev-start" type="time">
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
+        <div style="flex:1">
+          <div class="field-label" style="margin-bottom:4px">Start</div>
+          <input class="field-input" id="ev-start" type="time" style="padding:8px 10px;font-size:13px">
         </div>
-        <div class="field-group">
-          <div class="field-label">End time</div>
-          <input class="field-input" id="ev-end" type="time">
+        <div style="padding-bottom:9px;color:var(--text-secondary);font-size:16px;font-weight:300">→</div>
+        <div style="flex:1">
+          <div class="field-label" style="margin-bottom:4px">End</div>
+          <input class="field-input" id="ev-end" type="time" style="padding:8px 10px;font-size:13px">
         </div>
       </div>
       <div class="field-group">
@@ -740,7 +741,7 @@ const SHEET_ID  = '1k92AbpDMQPZBW9tEs76GN1J1kps3rxzBDhCv3e-WV8M';
 const CLIENT_ID = '889999783291-sv2fhu2c7h9qojg4sfujhhitadql5sin.apps.googleusercontent.com';
 const SCOPES    = 'https://www.googleapis.com/auth/spreadsheets';
 const ANTHROPIC_KEY = '';
-const APP_VERSION = '1.7.5';
+const APP_VERSION = '1.7.6';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1275,8 +1276,11 @@ function renderToday() {
       card.className='event-card '+(ev.type==='betreuung'?'betreuung':ev.type==='family'?'family':ev.type==='jo-event'?'jo':'');
       const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
       const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
-      card.innerHTML=`<div class="event-time">${(ev.time||'').split('–')[0]||ev.time}</div>
-        <div class="event-info"><div class="event-title">${ev.icon||autoIconFor(ev.title)?`<span style='margin-right:4px'>${ev.icon||autoIconFor(ev.title)}</span>`:''  }${ev.title}</div><div class="event-meta">${ev.detail||''}</div>${subjectLine}</div>
+      const _icon = ev.icon||autoIconFor(ev.title)||'';
+      const _timeParts = (ev.time||'').split('–');
+      const _timeDisplay = _timeParts[1] ? `${_timeParts[0]}<span style='font-weight:300;color:var(--border)'>–</span>${_timeParts[1]}` : _timeParts[0]||'';
+      card.innerHTML=`<div class="event-time">${_timeDisplay}${_icon?`<span style='font-size:18px'>${_icon}</span>`:''}</div>
+        <div class="event-info"><div class="event-title">${ev.title}</div><div class="event-meta">${ev.detail||''}</div>${subjectLine}</div>
 `;
       todayEl.appendChild(card);
     });
