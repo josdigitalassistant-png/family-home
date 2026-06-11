@@ -912,6 +912,324 @@ const timetable = (function(){
 const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
 
 // ═══════════════════════════════════
+// AUTH
+// ═══════════════════════════════════
+let _tokenClient = null;
+let _tokenRefreshQueue = [];
+let _tokenRefreshing = false;
+
+function onGISLoaded() {
+  const btn = document.getElementById('signin-btn');
+  if (btn) { btn.textContent = 'Sign in with Google'; btn.disabled = false; }
+}
+
+function getTokenClient() {
+  if (!_tokenClient && typeof google !== 'undefined' && google.accounts) {
+    _tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID, scope: SCOPES, prompt: '',
+      callback: (response) => {
+        _tokenRefreshing = false;
+        if (!response.error) {
+          accessToken = response.access_token;
+          const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+          s.token = accessToken; localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+          setSyncLive();
+          const q = _tokenRefreshQueue.splice(0);
+          q.forEach(cb => cb(true));
+        } else {
+          setSyncError();
+          const q = _tokenRefreshQueue.splice(0);
+          q.forEach(cb => cb(false));
+        }
+      }
+    });
+  }
+  return _tokenClient;
+}
+
+function refreshToken() {
+  return new Promise((resolve) => {
+    _tokenRefreshQueue.push(resolve);
+    if (!_tokenRefreshing) {
+      _tokenRefreshing = true;
+      const client = getTokenClient();
+      if (client) { client.requestAccessToken(); }
+      else { setTimeout(() => { _tokenRefreshing = false; refreshToken().then(resolve); }, 1000); }
+    }
+  });
+}
+
+function silentSignIn(onSuccess) {
+  refreshToken().then(ok => {
+    if (ok) { if (onSuccess) onSuccess(); else loadAllSheets(); }
+    else { setSyncError(); }
+  });
+}
+
+function startSignIn() {
+  if (typeof google === 'undefined' || !google.accounts) {
+    alert('Google sign-in is still loading — please wait a moment and try again.'); return;
+  }
+  document.querySelectorAll('.ob-step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('ob-step-2').classList.add('active');
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: SCOPES,
+    callback: (response) => {
+      if (response.error) {
+        document.querySelectorAll('.ob-step').forEach(s=>s.classList.remove('active'));
+        document.getElementById('ob-step-1').classList.add('active'); return;
+      }
+      accessToken = response.access_token;
+      const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      s.token = accessToken; s.setupDone = true; s.version = APP_VERSION;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      _tokenClient = client;
+      document.getElementById('onboarding').style.display = 'none';
+      showApp(); loadAllSheets();
+    }
+  });
+  client.requestAccessToken();
+}
+
+function signOut() {
+  if (accessToken) google.accounts.oauth2.revoke(accessToken, ()=>{});
+  accessToken = null; localStorage.removeItem(STORAGE_KEY); location.reload();
+}
+
+// ═══════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════
+window.addEventListener('load', function(){
+  const s = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  if (s.setupDone) {
+    if (s.token) accessToken = s.token;
+    showApp();
+    silentSignIn();
+  } else {
+    document.getElementById('onboarding').style.display = 'flex';
+  }
+});
+
+function showApp() {
+  document.getElementById('app').classList.add('ready');
+  initApp();
+  startAutoSync();
+  if (accessToken) loadAllSheets();
+}
+
+function initApp() {
+  const hour = now.getHours();
+  document.getElementById('greeting').textContent = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  const dateEl = document.getElementById('greeting-date');
+  if(dateEl) dateEl.textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
+}
+
+// ═══════════════════════════════════
+// SYNC
+// ═══════════════════════════════════
+let syncInterval = null;
+let tokenExpiredAt = null;
+
+function startAutoSync() {
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = setInterval(() => {
+    if (accessToken && document.visibilityState === 'visible' && !tokenExpiredAt) silentRefresh();
+  }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (tokenExpiredAt) showReconnectBanner();
+      else if (accessToken) silentRefresh();
+    }
+  });
+}
+
+let lastRefresh = 0;
+function silentRefresh() {
+  const n = Date.now();
+  if (n - lastRefresh < 15000) return;
+  lastRefresh = n;
+  showSyncPulse();
+  loadAllSheets().catch(e => { console.warn('silentRefresh failed:', e); setSyncError(); });
+}
+
+function showSyncPulse() {
+  const dot = document.getElementById('sync-dot');
+  if (dot) { dot.style.opacity='0.4'; setTimeout(()=>{ dot.style.opacity='1'; }, 600); }
+}
+
+function setSyncLive() {
+  tokenExpiredAt = null; hideReconnectBanner();
+  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot live';
+  const t=document.getElementById('topbar-sync');
+  if(t) t.textContent=`Synced ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
+  else setTimeout(setSyncLive, 500);
+}
+
+function setSyncError() {
+  const d=document.getElementById('sync-dot'); if(d) d.className='sync-dot error';
+  const t=document.getElementById('topbar-sync');
+  if(t) t.textContent=`Sync failed ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} · v${APP_VERSION}`;
+}
+
+function showReconnectBanner() { const b=document.getElementById('reconnect-banner');if(b)b.classList.add('visible'); }
+function hideReconnectBanner() { const b=document.getElementById('reconnect-banner');if(b)b.classList.remove('visible'); }
+
+function reconnect() {
+  hideReconnectBanner(); tokenExpiredAt=null;
+  refreshToken().then(ok=>{ if(ok) loadAllSheets(); });
+}
+
+// ═══════════════════════════════════
+// SHEETS API
+// ═══════════════════════════════════
+const APP_DATA_RANGE = "'AppData'!A1";
+
+async function sheetsGet(range) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`,
+    {headers:{Authorization:`Bearer ${accessToken}`}});
+  if (res.status===401) { tokenExpiredAt=Date.now(); showReconnectBanner(); throw new Error('401'); }
+  if (!res.ok) throw new Error(res.status);
+  return (await res.json()).values || [];
+}
+
+async function sheetsUpdate(range, values) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+    {method:'PUT',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
+  if (res.status===401) { tokenExpiredAt=Date.now(); showReconnectBanner(); throw new Error('401'); }
+}
+
+async function sheetsAppend(range, values) {
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
+    {method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({values})});
+}
+
+async function ensureAppDataSheet() {
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`,
+      {headers:{Authorization:`Bearer ${accessToken}`}});
+    if (res.status===401) { tokenExpiredAt=Date.now(); showReconnectBanner(); return; }
+    if (!res.ok) return;
+    const meta = await res.json();
+    if (!meta.sheets) return;
+    const exists = meta.sheets.some(s=>s.properties.title==='AppData');
+    if (!exists) {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}:batchUpdate`,{
+        method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
+        body:JSON.stringify({requests:[{addSheet:{properties:{title:'AppData'}}}]})
+      });
+    }
+  } catch(e) { console.warn('ensureAppDataSheet:', e); }
+}
+
+async function loadAppData() {
+  try {
+    const rows = await sheetsGet(APP_DATA_RANGE);
+    if (rows && rows[0] && rows[0][0]) return JSON.parse(rows[0][0]);
+  } catch(e) { console.warn('loadAppData:', e); }
+  return null;
+}
+
+async function saveAppData() {
+  if (!accessToken) return;
+  try {
+    const _sv = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+    const state = {
+      version: APP_VERSION,
+      activities: activities,
+      shopping: shopping,
+      tasks: tasks,
+      contacts: contactsData,
+      payments: payments,
+      timetable: timetable,
+      ttValidFrom: _sv.ttValidFrom||null,
+      ttValidTo: _sv.ttValidTo||null,
+      updatedAt: new Date().toISOString()
+    };
+    await sheetsUpdate(APP_DATA_RANGE, [[JSON.stringify(state)]]);
+    setSyncLive();
+  } catch(e) { setSyncError(); console.error('saveAppData:', e); }
+}
+
+function applyAppState(remote) {
+  if (!remote) return;
+  if (remote.activities) { activities.length=0; remote.activities.forEach(a=>activities.push(a)); }
+  if (remote.shopping) { shopping.length=0; remote.shopping.forEach(s=>shopping.push(s)); nextId=shopping.length+1; }
+  if (remote.tasks) { tasks.length=0; remote.tasks.forEach(t=>tasks.push(t)); }
+  if (remote.contacts) { for(let k in remote.contacts) contactsData[k]=remote.contacts[k]; }
+  if (remote.payments) { payments.length=0; remote.payments.forEach(p=>payments.push(p)); }
+  if (remote.timetable) { for(let k in remote.timetable) timetable[k]=remote.timetable[k]; }
+  if (remote.ttValidFrom !== undefined) {
+    const sv2 = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+    sv2.ttValidFrom=remote.ttValidFrom; sv2.ttValidTo=remote.ttValidTo;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sv2));
+  }
+}
+
+async function loadAllSheets() {
+  try {
+    await ensureAppDataSheet();
+    const remote = await loadAppData();
+    if (remote) { applyAppState(remote); }
+    else { console.log('No AppData — starting fresh'); }
+    setSyncLive();
+    renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
+  } catch(e) { setSyncError(); console.error('loadAllSheets:', e); }
+}
+
+// ═══════════════════════════════════
+// NAV
+// ═══════════════════════════════════
+const NAV_TABS = [
+  {id:'today',icon:'☀️',label:'Today'},{id:'week',icon:'📅',label:'Week'},
+  {id:'shopping',icon:'🛒',label:'Shopping'},{id:'tasks',icon:'✅',label:'Tasks'},
+  {id:'money',icon:'💰',label:'Money'},{id:'contacts',icon:'📞',label:'Contacts'},
+];
+let currentTab = 'today';
+
+function buildMenu() {
+  const inner = document.getElementById('nav-dropdown-inner');
+  if (!inner) return;
+  inner.innerHTML = '';
+  NAV_TABS.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'nav-menu-item'+(t.id===currentTab?' active':'');
+    div.id = 'nav-item-'+t.id;
+    div.innerHTML = `<span class="nav-menu-icon">${t.icon}</span><span class="nav-menu-label">${t.label}</span>`;
+    div.onclick = () => { closeMenu(); setTimeout(()=>switchTab(t.id),50); };
+    inner.appendChild(div);
+  });
+}
+
+function toggleMenu() {
+  const dd=document.getElementById('nav-dropdown');
+  const overlay=document.getElementById('nav-overlay');
+  const btn=document.getElementById('hamburger-btn');
+  const isOpen=dd.classList.contains('open');
+  if(isOpen){dd.classList.remove('open');overlay.classList.remove('open');btn.classList.remove('open');}
+  else{buildMenu();dd.classList.add('open');overlay.classList.add('open');btn.classList.add('open');}
+}
+
+function closeMenu() {
+  document.getElementById('nav-dropdown').classList.remove('open');
+  document.getElementById('nav-overlay').classList.remove('open');
+  document.getElementById('hamburger-btn').classList.remove('open');
+}
+
+function switchTab(tab) {
+  currentTab=tab;
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+tab).classList.add('active');
+  if(tab==='week') renderWeek();
+  if(tab==='shopping') renderShopping();
+  if(tab==='tasks') renderTasks();
+  if(tab==='money') renderMoney();
+  if(tab==='contacts') renderContacts();
+  document.querySelectorAll('.nav-menu-item').forEach(el=>el.classList.toggle('active',el.id==='nav-item-'+tab));
+}
+
+
+// ═══════════════════════════════════
 // ACTIVITY ENGINE — date-based storage
 // ═══════════════════════════════════
 let activities = [];
@@ -1152,6 +1470,175 @@ function selectType(el){
   el.classList.add('active');
   document.getElementById('ev-timetable-section').style.display=el.dataset.type==='school'?'block':'none';
 }
+// ═══════════════════════════════════
+// WEEK VIEW
+// ═══════════════════════════════════
+let weekOffset = 0;
+let selectedDay = now.getDay()===0?7:now.getDay();
+const days7 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dayNames = ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+
+function getWeekStart(offset){
+  const d=new Date(now);
+  d.setDate(d.getDate()-(d.getDay()===0?6:d.getDay()-1)+offset*7);
+  d.setHours(0,0,0,0); return d;
+}
+function changeWeek(dir){weekOffset+=dir;renderWeek();}
+function goToToday(){weekOffset=0;selectedDay=now.getDay()===0?7:now.getDay();renderWeek();}
+
+function renderWeek(){
+  const ws=getWeekStart(weekOffset);
+  document.getElementById('week-label').textContent=weekOffset===0?'This week':weekOffset===1?'Next week':weekOffset===-1?'Last week':ws.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  const todayBtnRow=document.getElementById('today-btn-row');
+  if(todayBtnRow) todayBtnRow.style.display=weekOffset===0?'none':'block';
+
+  const tabs=document.getElementById('day-tabs');
+  tabs.innerHTML='';
+  for(let i=0;i<7;i++){
+    const d=new Date(ws); d.setDate(ws.getDate()+i);
+    const idx=i===6?7:i+1;
+    const btn=document.createElement('div');
+    btn.className='day-tab'+(idx===selectedDay?' active':'')+(d.toDateString()===now.toDateString()?' today':'');
+    btn.innerHTML=`<div class="day-name">${days7[d.getDay()]}</div><div class="day-num">${d.getDate()}</div>`;
+    btn.onclick=(()=>{const di=idx;return()=>{selectedDay=di;renderWeek();};})();
+    tabs.appendChild(btn);
+  }
+
+  // Get date string for selected day
+  const _dayOffset2 = selectedDay===7?6:selectedDay-1;
+  const _sd2=new Date(ws); _sd2.setDate(ws.getDate()+_dayOffset2); _sd2.setHours(12,0,0,0);
+  const _sdStr=dateStr(_sd2);
+
+  // Timetable validity
+  const _s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const _ttFrom=_s.ttValidFrom||null, _ttTo=_s.ttValidTo||null;
+  const _ttValid=(!_ttFrom||_sdStr>=_ttFrom)&&(!_ttTo||_sdStr<=_ttTo);
+  const tt=_ttValid?timetable[dayKeyMap[selectedDay===7?0:selectedDay]]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+
+  const eventsEl=document.getElementById('day-events');
+  eventsEl.innerHTML='';
+
+  // Day header with + button
+  const hdr=document.createElement('div');
+  hdr.className='day-header-row';
+  hdr.innerHTML=`<div class="day-header-label">${dayNames[selectedDay]}</div>`;
+  const addBtn=document.createElement('button');
+  addBtn.className='btn-add-event'; addBtn.title='Add activity'; addBtn.textContent='+';
+  addBtn.onclick=function(){ openEventEditor(_sdStr, null); };
+  hdr.appendChild(addBtn);
+  eventsEl.appendChild(hdr);
+
+  const sortedEvents = getActivitiesForDate(_sdStr);
+
+  if(!sortedEvents.length){
+    const empty=document.createElement('div');
+    empty.className='empty-day';
+    empty.textContent='🌿 Nothing scheduled — tap + to add';
+    eventsEl.appendChild(empty);
+  }
+
+  sortedEvents.forEach((ev,evIdx)=>{
+    const div=document.createElement('div');
+    div.className='day-event-block '+(ev.type||'activity');
+    const icon=ev.icon||autoIconFor(ev.title)||'';
+    const _evDetail=[ev.location,ev.notes].filter(Boolean).join(' · ');
+    const _evTime=ev.startTime?(ev.endTime?ev.startTime+'–'+ev.endTime:ev.startTime):'';
+    const isMainSchool=ev.type==='school';
+    const subjectLine=isMainSchool&&tt.subjects.length?`<div class="day-event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
+    const isBirthday=ev.type==='birthday';
+    if(isBirthday){
+      div.className='birthday-card';
+      div.innerHTML=`<div class="birthday-emoji">🎂</div><div><div class="birthday-name">${ev.title}</div>${ev.notes?`<div class="birthday-sub">${ev.notes}</div>`:''}</div>`;
+    } else {
+      div.innerHTML=`<div class="day-event-row">
+        <div class="day-event-title">${icon?`<span style="margin-right:5px">${icon}</span>`:''}${ev.title}</div>
+        <div class="day-event-time">${_evTime}</div></div>
+        <div class="day-event-detail">${_evDetail}</div>${subjectLine}
+        ${ev.scheduleType==='recurring'?`<div class="recurring-badge">🔁 ${(ev.recurrence&&ev.recurrence.frequency)||'recurring'}</div>`:''}
+        ${ev.drop||ev.pick?`<div class="day-event-owners">
+          ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
+          ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
+        </div>`:''}`;
+    }
+    div.onclick=(()=>{const _aid=ev.id,_ds=_sdStr;return()=>openEventEditor(_ds,_aid);})();
+    eventsEl.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════
+// TODAY VIEW
+// ═══════════════════════════════════
+function renderToday(){
+  const jsDay=now.getDay();
+  const _todayStr=dateStr(now);
+  const todayKey=dayKeyMap[jsDay];
+
+  // Timetable validity
+  const _stt=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const _ttFromT=_stt.ttValidFrom||null, _ttToT=_stt.ttValidTo||null;
+  const _ttValidToday=(!_ttFromT||_todayStr>=_ttFromT)&&(!_ttToT||_todayStr<=_ttToT);
+  const tt=_ttValidToday?timetable[todayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+
+  const todayEvents=getActivitiesForDate(_todayStr);
+
+  // Kit checklist
+  const allKit=[];
+  if(tt.kit&&tt.kit.length) allKit.push(...tt.kit);
+  todayEvents.forEach(ev=>{
+    const title=(ev.title||'').toLowerCase();
+    if(title.includes('swim')){if(!allKit.includes('🏊 Swim kit'))allKit.push('🏊 Swim kit');}
+    else if(title.includes('turnen')||title.includes('sport')){if(!allKit.includes('🎽 Sports kit'))allKit.push('🎽 Sports kit');}
+  });
+  renderKitChecklist(allKit);
+
+  // Today events
+  const todayEl=document.getElementById('today-events');
+  todayEl.innerHTML='';
+  if(!todayEvents.length){
+    todayEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:12px 0">Nothing scheduled today 🌿</div>';
+  } else {
+    todayEvents.forEach(ev=>{
+      const card=document.createElement('div');
+      const _cardType=ev.type||'activity';
+      card.className='event-card '+_cardType;
+      const _icon=ev.icon||autoIconFor(ev.title)||'';
+      const _startTime=ev.startTime||'';
+      const _endTime=ev.endTime||'';
+      const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
+      const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
+      card.innerHTML=`
+        <div class="event-icon-col">${_icon||'&nbsp;'}</div>
+        <div class="event-time">${_startTime?`<span>${_startTime}</span>`:''}${_endTime?`<span style="font-weight:400">${_endTime}</span>`:''}</div>
+        <div class="event-info"><div class="event-title">${ev.title}</div>
+          <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>${subjectLine}
+        </div>`;
+      todayEl.appendChild(card);
+    });
+  }
+
+  // Coming up
+  const upcomingEl=document.getElementById('upcoming-events');
+  upcomingEl.innerHTML='';
+  let count=0;
+  for(let offset=1;offset<=14&&count<3;offset++){
+    const d=new Date(now); d.setDate(now.getDate()+offset);
+    const upDs=dateStr(d);
+    getActivitiesForDate(upDs).slice(0,1).forEach(ev=>{
+      if(count>=3)return;
+      const card=document.createElement('div');
+      const _cardType=ev.type||'activity';
+      card.className='event-card '+_cardType;
+      const _uicon=ev.icon||autoIconFor(ev.title)||'';
+      card.innerHTML=`<div class="event-icon-col">${_uicon||'&nbsp;'}</div>
+        <div class="event-time"><span>${d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</span></div>
+        <div class="event-info"><div class="event-title">${ev.title}</div>
+          <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>
+        </div>`;
+      upcomingEl.appendChild(card);count++;
+    });
+  }
+}
+
 // ═══════════════════════════════════
 // SHOPPING
 // ═══════════════════════════════════
