@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.4 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.7 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -378,8 +378,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 }
 .kit-check-item.checked .kit-check-box { background: var(--sophia); border-color: var(--sophia); color: #fff; }
 .kit-check-item.checked .kit-check-label { text-decoration: line-through; opacity: 0.5; }
-.kit-check-label { font-size: 14px; color: var(--text); }
-.kit-check-icon { font-size: 18px; }
+.kit-check-item.checked .kit-item-image { opacity: 0.35; }
+.kit-check-label { font-size: 14px; color: var(--text); flex: 1; }
+.kit-item-image {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: #FEF3C7; display: flex; align-items: center;
+  justify-content: center; font-size: 22px; flex-shrink: 0;
+  transition: opacity 0.2s;
+}
 
 
 /* RECURRING BADGE */
@@ -466,7 +472,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.4</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.7</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -518,8 +524,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
     <div class="section-label" id="label-tomorrow" style="margin-top:20px">Tomorrow</div>
     <div id="tomorrow-kit-banners" style="margin-bottom:8px"></div>
     <div id="tomorrow-events"></div>
-    <div class="section-label" style="margin-top:20px">Later this week</div>
-    <div id="upcoming-events"></div>
+    <button onclick="switchTab('week')" style="width:100%;margin-top:20px;padding:11px;border-radius:10px;border:1.5px solid var(--border);background:none;font-size:13px;font-weight:500;color:var(--text-secondary);font-family:inherit;cursor:pointer">📅 View full week →</button>
   </div>
 
   <!-- WEEK -->
@@ -744,7 +749,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.4</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.7</div>
   </div>
 </div>
 
@@ -905,7 +910,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.4';
+const APP_VERSION = '2.0.7';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1659,37 +1664,13 @@ function renderToday(){
   const todayTT=ttValid(_todayStr)?timetable[todayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
   const todayEvents=getActivitiesForDate(_todayStr);
   renderEventCards(todayEvents, document.getElementById('today-events'), todayTT);
-  renderKitChecklist(collectKit(_todayStr, todayKey), 'kit-banners', '🎒 Kit needed today');
+  renderKitChecklist(collectKit(_todayStr, todayKey), 'kit-banners', 'Don\u2019t forget to pack');
 
   // ── TOMORROW ──
   const tomorrowTT=ttValid(_tomorrowStr)?timetable[tomorrowKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
   const tomorrowEvents=getActivitiesForDate(_tomorrowStr);
   renderEventCards(tomorrowEvents, document.getElementById('tomorrow-events'), tomorrowTT);
-  renderKitChecklist(collectKit(_tomorrowStr, tomorrowKey), 'tomorrow-kit-banners', '🎒 Kit needed tomorrow');
-
-  // ── LATER THIS WEEK (days 2–4 from today, summary only, no kit) ──
-  const upcomingEl=document.getElementById('upcoming-events');
-  upcomingEl.innerHTML='';
-  let count=0;
-  for(let offset=2;offset<=5&&count<3;offset++){
-    const d=new Date(now); d.setDate(now.getDate()+offset);
-    const upDs=dateStr(d);
-    const evs=getActivitiesForDate(upDs);
-    if(!evs.length) continue;
-    evs.slice(0,2).forEach(ev=>{
-      const card=document.createElement('div');
-      card.className='event-card '+(ev.type||'activity');
-      const _uicon=ev.icon||autoIconFor(ev.title)||'';
-      card.innerHTML=`<div class="event-icon-col">${_uicon||'&nbsp;'}</div>
-        <div class="event-time"><span>${d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</span></div>
-        <div class="event-info"><div class="event-title">${ev.title}</div>
-          <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>
-        </div>`;
-      upcomingEl.appendChild(card);count++;
-    });
-    if(count>=3) break;
-  }
-  if(!count) upcomingEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:8px 0">Nothing else in the next few days 🌿</div>';
+  renderKitChecklist(collectKit(_tomorrowStr, tomorrowKey), 'tomorrow-kit-banners', 'Don\u2019t forget to pack tomorrow');
 }
 
 // ═══════════════════════════════════
@@ -2282,7 +2263,7 @@ function renderKitChecklist(kitItems, containerId, title) {
     const row = document.createElement('div');
     const isChecked = kitChecked[containerId+'_'+item] || false;
     row.className = 'kit-check-item' + (isChecked ? ' checked' : '');
-    row.innerHTML = `<div class="kit-check-box">${isChecked ? '✓' : ''}</div><div class="kit-check-label">${item}</div>`;
+    row.innerHTML = `<div class="kit-check-box">${isChecked ? '✓' : ''}</div><div class="kit-item-image">${kitEmojiFor(item)}</div><div class="kit-check-label">${item}</div>`;
     row.onclick = () => {
       kitChecked[containerId+'_'+item] = !kitChecked[containerId+'_'+item];
       renderKitChecklist(kitItems, containerId, title);
