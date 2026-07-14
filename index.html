@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.7 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.8 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -472,7 +472,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.7</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.8</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -749,7 +749,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.7</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.8</div>
   </div>
 </div>
 
@@ -910,7 +910,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.7';
+const APP_VERSION = '2.0.8';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -2247,9 +2247,67 @@ function toggleSophiaView() {
 // ═══════════════════════════════════
 let kitChecked = {}; // resets on each page load — kit list is always fresh each day
 
+const KIT_EMOJI_MAP = [
+  [/water.?bottle|trinkflasche|drink/i,           '🍶'],
+  [/flask|thermos/i,                               '🧃'],
+  [/sun.?hat|hat|cap|m.tze/i,                     '🧢'],
+  [/rain.?coat|raincoat|waterproof|regenjacke/i,  '🌧️'],
+  [/jacket|coat|mantel/i,                          '🧥'],
+  [/gloves?|handschuhe/i,                          '🧤'],
+  [/scarf|schal/i,                                 '🧣'],
+  [/boot|gummistiefel/i,                           '🥾'],
+  [/shoe|sneaker|turnschuh/i,                      '👟'],
+  [/socks?|socken/i,                               '🧦'],
+  [/umbrella|regenschirm/i,                        '☂️'],
+  [/swim.?kit|swim.?bag|badezeug|badehose|bikini/i,'🩱'],
+  [/goggles?/i,                                    '🥽'],
+  [/sports?.?kit|gym.?kit|pe.?kit|turnen/i,       '🎽'],
+  [/towel|handtuch/i,                              '🏖️'],
+  [/football|soccer/i,                             '⚽'],
+  [/tennis/i,                                      '🎾'],
+  [/basketball/i,                                  '🏀'],
+  [/hockey/i,                                      '🏑'],
+  [/ski|snowboard/i,                               '🎿'],
+  [/helmet/i,                                      '⛑️'],
+  [/bike|fahrrad|bicycle/i,                        '🚲'],
+  [/art.?apron|apron|sch.rze/i,                   '🎨'],
+  [/instrument|music|guitar|geige|violin|flute/i,  '🎸'],
+  [/recorder/i,                                    '🎵'],
+  [/book|buch|reader/i,                            '📚'],
+  [/folder|mappe|binder/i,                         '📁'],
+  [/pencil|bleistift/i,                            '✏️'],
+  [/calculator/i,                                  '🔢'],
+  [/laptop|computer/i,                             '💻'],
+  [/tablet|ipad/i,                                 '📱'],
+  [/scissors|schere/i,                             '✂️'],
+  [/lunch.?box|lunchbox|brotdose/i,               '🥪'],
+  [/snack|fruit|obst/i,                            '🍎'],
+  [/sunscreen|suncream|sonnencreme/i,              '🧴'],
+  [/plaster|bandage|pflaster/i,                    '🩹'],
+  [/mask/i,                                        '😷'],
+  [/tissue|taschentuch/i,                          '🤧'],
+  [/money|cash|geld|wallet/i,                      '💶'],
+  [/ticket/i,                                      '🎟️'],
+  [/permission|slip|form/i,                        '📋'],
+  [/phone|handy/i,                                 '📱'],
+  [/key|schl.ssel/i,                               '🔑'],
+  [/bag|rucksack|backpack|tasche/i,                '🎒'],
+];
+
+function kitEmojiFor(itemText) {
+  try {
+    // Strip leading emoji by matching non-letter chars at the start
+    const clean = itemText.replace(/^[^\w\u00C0-\u024F]+/, '').trim();
+    for (const [re, emoji] of KIT_EMOJI_MAP) {
+      if (re.test(clean) || re.test(itemText)) return emoji;
+    }
+  } catch(e) { /* fallback below */ }
+  return '🎒';
+}
+
 function renderKitChecklist(kitItems, containerId, title) {
   containerId = containerId || 'kit-banners';
-  title = title || '🎒 Kit needed today';
+  title = title || 'Don\u2019t forget to pack';
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = '';
