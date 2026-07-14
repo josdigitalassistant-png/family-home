@@ -774,9 +774,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
           </div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;box-sizing:border-box">
-        <div style="min-width:0"><div class="field-label" style="margin-bottom:4px">Start time</div><input class="field-input" id="ev-start" type="time" style="width:100%;min-width:0;padding:8px;font-size:13px;box-sizing:border-box"></div>
+      <div id="ev-time-row" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;box-sizing:border-box">
+        <div style="min-width:0"><div class="field-label" style="margin-bottom:4px">Start time</div><input class="field-input" id="ev-start" type="time" oninput="onStartTimeChange()" style="width:100%;min-width:0;padding:8px;font-size:13px;box-sizing:border-box"></div>
         <div style="min-width:0"><div class="field-label" style="margin-bottom:4px">End time</div><input class="field-input" id="ev-end" type="time" style="width:100%;min-width:0;padding:8px;font-size:13px;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary)">
+          <input type="checkbox" id="ev-allday" onchange="onAllDayChange()" style="cursor:pointer;width:16px;height:16px">
+          All day
+        </label>
       </div>
       <div class="field-group"><div class="field-label">Location</div><input class="field-input" id="ev-location" type="text" placeholder="e.g. Hallenbad City"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
@@ -784,16 +790,16 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         <div><div class="field-label" style="margin-bottom:4px">Pick-up</div><input class="field-input" id="ev-pick" type="text" placeholder="e.g. Partner"></div>
       </div>
       <div class="field-group"><div class="field-label">Notes</div><input class="field-input" id="ev-notes" type="text" placeholder="e.g. Bring swim kit"></div>
+      <div class="field-group"><div class="field-label">Kit needed</div>
+        <div class="tt-kit-row" id="ev-kit-row">
+          <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎽 Sports kit</span>
+          <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🏊 Swim kit</span>
+          <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎸 Instrument</span>
+          <span class="tt-kit-chip add-kit-btn" onclick="addKitToEvent()">+ Other</span>
+        </div>
+      </div>
       <div id="ev-timetable-section" style="display:none">
         <div class="field-group"><div class="field-label">Subjects</div><input class="field-input" id="ev-subjects" type="text" placeholder="e.g. Deutsch, Mathe"></div>
-        <div class="field-group"><div class="field-label">Kit needed</div>
-          <div class="tt-kit-row" id="ev-kit-row">
-            <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎽 Sports kit</span>
-            <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🏊 Swim kit</span>
-            <span class="tt-kit-chip" onclick="this.classList.toggle('active')">🎸 Instrument</span>
-            <span class="tt-kit-chip add-kit-btn" onclick="addKitToEvent()">+ Other</span>
-          </div>
-        </div>
       </div>
       <div class="field-group"><div class="field-label">Type</div>
         <div class="event-type-row" id="ev-type-row">
@@ -1248,6 +1254,11 @@ function openEventEditor(dateContext, actId) {
   document.querySelectorAll('.series-mode-label').forEach(e=>e.remove());
   ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ev-start').value=''; document.getElementById('ev-end').value='';
+  const _ad = document.getElementById('ev-allday'); if(_ad){_ad.checked=false;} document.getElementById('ev-time-row').style.display='grid';
+  // Reset kit chips to default unchecked state
+  document.querySelectorAll('#ev-kit-row .tt-kit-chip:not(.add-kit-btn)').forEach(c=>{
+    if(!['🎽 Sports kit','🏊 Swim kit','🎸 Instrument'].includes(c.textContent.trim())){c.remove();}else{c.classList.remove('active');}
+  });
   setEventIcon('🎯');
   const _so=document.getElementById('series-opts');if(_so)_so.classList.remove('open');
   const _ts=document.getElementById('ev-timetable-section');if(_ts)_ts.style.display='none';
@@ -1269,6 +1280,21 @@ function openEventEditor(dateContext, actId) {
     document.getElementById('ev-title').value = act.title||'';
     document.getElementById('ev-start').value = act.startTime||'';
     document.getElementById('ev-end').value = act.endTime||'';
+    const _adEl = document.getElementById('ev-allday');
+    if(_adEl){ _adEl.checked = !!act.allDay; document.getElementById('ev-time-row').style.display=act.allDay?'none':'grid'; }
+    // Restore kit chips
+    document.querySelectorAll('#ev-kit-row .tt-kit-chip:not(.add-kit-btn)').forEach(c=>{
+      if(!['🎽 Sports kit','🏊 Swim kit','🎸 Instrument'].includes(c.textContent.trim())){c.remove();}else{c.classList.remove('active');}
+    });
+    (act.kit||[]).forEach(k=>{
+      const existing=[...document.querySelectorAll('#ev-kit-row .tt-kit-chip:not(.add-kit-btn)')].find(c=>c.textContent.trim()===k);
+      if(existing){existing.classList.add('active');}else{
+        const row=document.getElementById('ev-kit-row');
+        const chip=document.createElement('span');chip.className='tt-kit-chip active';chip.textContent=k;
+        chip.onclick=()=>chip.classList.toggle('active');
+        row.insertBefore(chip,row.querySelector('.add-kit-btn'));
+      }
+    });
     document.getElementById('ev-location').value = act.location||'';
     document.getElementById('ev-notes').value = act.notes||'';
     document.getElementById('ev-drop').value = act.drop||'';
@@ -1321,12 +1347,14 @@ function saveEvent() {
   const icon=getEventIcon();
   const startTime=document.getElementById('ev-start').value;
   const endTime=document.getElementById('ev-end').value;
+  const allDay=document.getElementById('ev-allday')?.checked||false;
+  const kit=Array.from(document.querySelectorAll('#ev-kit-row .tt-kit-chip.active:not(.add-kit-btn)')).map(c=>c.textContent.trim());
   const location=document.getElementById('ev-location').value.trim();
   const notes=document.getElementById('ev-notes').value.trim();
   const drop=document.getElementById('ev-drop').value.trim();
   const pick=document.getElementById('ev-pick').value.trim();
 
-  const act={id:editingActivityId||('act_'+Date.now()),title,type,icon,startTime,endTime,location,notes,drop,pick,scheduleType:schedType};
+  const act={id:editingActivityId||('act_'+Date.now()),title,type,icon,startTime:allDay?'':startTime,endTime:allDay?'':endTime,allDay,kit,location,notes,drop,pick,scheduleType:schedType};
 
   if(schedType==='oneoff') { act.date=document.getElementById('ev-date-oneoff').value; }
   else if(schedType==='multiday') {
@@ -1344,7 +1372,6 @@ function saveEvent() {
   // Save timetable for school recurring
   if(type==='school'&&schedType==='recurring') {
     const subjects=(document.getElementById('ev-subjects')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-    const kit=Array.from(document.querySelectorAll('#ev-kit-row .tt-kit-chip.active:not(.add-kit-btn)')).map(c=>c.textContent.trim());
     const r=act.recurrence;
     if(r&&r.daysOfWeek) r.daysOfWeek.forEach(d=>{const key=['','mon','tue','wed','thu','fri','sat','sun'][d];if(key)timetable[key]={subjects,kit};});
     const sv=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
@@ -1379,6 +1406,26 @@ function deleteEvent() {
 
 function saveActivities() { saveAppData(); }
 function saveWeekDataToStorage() { /* activities array is source of truth */ }
+
+function onStartTimeChange() {
+  const startEl = document.getElementById('ev-start');
+  const endEl = document.getElementById('ev-end');
+  if (!startEl.value) return;
+  // Always push end time to start + 1 hour when user picks a start time
+  const [h, m] = startEl.value.split(':').map(Number);
+  const endH = (h + 1) % 24;
+  endEl.value = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function onAllDayChange() {
+  const allDay = document.getElementById('ev-allday').checked;
+  const timeRow = document.getElementById('ev-time-row');
+  if (timeRow) timeRow.style.display = allDay ? 'none' : 'grid';
+  if (allDay) {
+    document.getElementById('ev-start').value = '';
+    document.getElementById('ev-end').value = '';
+  }
+}
 
 function addKitToEvent(){
   const val=prompt('Kit item:');if(!val||!val.trim())return;
@@ -1465,9 +1512,10 @@ function renderWeek(){
     div.className='day-event-block '+(ev.type||'activity');
     const icon=ev.icon||autoIconFor(ev.title)||'';
     const _evDetail=[ev.location,ev.notes].filter(Boolean).join(' · ');
-    const _evTime=ev.startTime?(ev.endTime?ev.startTime+'–'+ev.endTime:ev.startTime):'';
+    const _evTime=ev.allDay?'All day':ev.startTime?(ev.endTime?ev.startTime+'–'+ev.endTime:ev.startTime):'';
     const isMainSchool=ev.type==='school';
     const subjectLine=isMainSchool&&tt.subjects.length?`<div class="day-event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
+    const kitLine=(ev.kit&&ev.kit.length&&!isMainSchool)?`<div>${ev.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
     const isBirthday=ev.type==='birthday';
     if(isBirthday){
       div.className='birthday-card';
@@ -1476,7 +1524,7 @@ function renderWeek(){
       div.innerHTML=`<div class="day-event-row">
         <div class="day-event-title">${icon?`<span style="margin-right:5px">${icon}</span>`:''}${ev.title}</div>
         <div class="day-event-time">${_evTime}</div></div>
-        <div class="day-event-detail">${_evDetail}</div>${subjectLine}
+        <div class="day-event-detail">${_evDetail}</div>${subjectLine}${kitLine}
         ${ev.scheduleType==='recurring'?`<div class="recurring-badge">🔁 ${(ev.recurrence&&ev.recurrence.frequency)||'recurring'}</div>`:''}
         ${ev.drop||ev.pick?`<div class="day-event-owners">
           ${ev.drop?`<span class="owner-chip ${ev.drop==='Jo'?'jo':'partner'}">Drop-off: ${ev.drop}</span>`:''}
@@ -1525,15 +1573,16 @@ function renderToday(){
       const _cardType=ev.type||'activity';
       card.className='event-card '+_cardType;
       const _icon=ev.icon||autoIconFor(ev.title)||'';
-      const _startTime=ev.startTime||'';
-      const _endTime=ev.endTime||'';
+      const _startTime=ev.allDay?'All day':(ev.startTime||'');
+      const _endTime=ev.allDay?'':(ev.endTime||'');
       const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
       const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
+      const kitLine=(ev.kit&&ev.kit.length&&!isMainSchool)?`<div>${ev.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
       card.innerHTML=`
         <div class="event-icon-col">${_icon||'&nbsp;'}</div>
         <div class="event-time">${_startTime?`<span>${_startTime}</span>`:''}${_endTime?`<span style="font-weight:400">${_endTime}</span>`:''}</div>
         <div class="event-info"><div class="event-title">${ev.title}</div>
-          <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>${subjectLine}
+          <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>${subjectLine}${kitLine}
         </div>`;
       todayEl.appendChild(card);
     });
