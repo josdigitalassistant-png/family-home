@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.3 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.4 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -67,9 +67,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .section-label{font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:0.8px;text-transform:uppercase;margin:20px 0 10px}
 
 /* TODAY */
-.today-greeting{background:linear-gradient(135deg,var(--dark) 0%,var(--mid) 100%);border-radius:var(--radius);padding:18px 20px;color:#fff;margin-bottom:16px}
+.today-greeting{background:linear-gradient(135deg,var(--dark) 0%,var(--mid) 100%);border-radius:var(--radius);padding:18px 20px;color:#fff;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.today-greeting-text{flex:1;min-width:0}
 .today-greeting h2{font-size:20px;font-weight:600;margin-bottom:4px}
 .today-greeting p{font-size:13px;color:rgba(255,255,255,0.7)}
+.today-greeting-icon{font-size:48px;line-height:1;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.25))}
 .pickup-banner{background:var(--sophia-light);border:1.5px solid var(--sophia);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .pickup-banner .icon{font-size:22px}
 .pickup-banner p{font-size:13px;font-weight:500;color:var(--dark)}
@@ -464,7 +466,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.3</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.4</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -503,16 +505,19 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
   <div class="section active" id="sec-today">
     <div class="pull-indicator" id="pull-indicator">↓ Syncing…</div>
     <div class="today-greeting">
-      <h2 id="greeting">Good morning</h2>
-      <p id="greeting-sub">Here's what's on today</p>
-      <p id="greeting-date" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px"></p>
+      <div class="today-greeting-text">
+        <h2 id="greeting">Good morning</h2>
+        <p id="greeting-sub">Here's what's on today</p>
+        <p id="greeting-date" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px"></p>
+      </div>
+      <div class="today-greeting-icon" id="greeting-icon">☀️</div>
     </div>
-    <div class="section-label">Today</div>
+    <div class="section-label" id="label-today">Today</div>
+    <div id="kit-banners" style="margin-bottom:8px"></div>
     <div id="today-events"></div>
-    <div id="kit-banners" style="margin-top:4px"></div>
-    <div class="section-label" style="margin-top:20px">Tomorrow</div>
+    <div class="section-label" id="label-tomorrow" style="margin-top:20px">Tomorrow</div>
+    <div id="tomorrow-kit-banners" style="margin-bottom:8px"></div>
     <div id="tomorrow-events"></div>
-    <div id="tomorrow-kit-banners" style="margin-top:4px"></div>
     <div class="section-label" style="margin-top:20px">Later this week</div>
     <div id="upcoming-events"></div>
   </div>
@@ -739,7 +744,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.3</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.4</div>
   </div>
 </div>
 
@@ -900,7 +905,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.3';
+const APP_VERSION = '2.0.4';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1052,9 +1057,26 @@ function showApp() {
 
 function initApp() {
   const hour = now.getHours();
-  document.getElementById('greeting').textContent = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  // Greeting text + time-of-day icon
+  const isAM = hour < 12;
+  const isAfternoon = hour >= 12 && hour < 17;
+  const isEvening = hour >= 17 && hour < 21;
+  const isNight = hour >= 21 || hour < 5;
+  document.getElementById('greeting').textContent = isAM?'Good morning':isAfternoon?'Good afternoon':isEvening?'Good evening':'Good night';
+  const greetingIcon = document.getElementById('greeting-icon');
+  if (greetingIcon) greetingIcon.textContent = isNight?'🌙':isEvening?'🌆':isAM&&hour<9?'🌅':isAM?'☀️':'🌤️';
   const dateEl = document.getElementById('greeting-date');
   if(dateEl) dateEl.textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+
+  // Day-name labels for Today / Tomorrow
+  const todayName = now.toLocaleDateString('en-GB',{weekday:'long'});
+  const tomorrowDate = new Date(now); tomorrowDate.setDate(now.getDate()+1);
+  const tomorrowName = tomorrowDate.toLocaleDateString('en-GB',{weekday:'long'});
+  const labelToday = document.getElementById('label-today');
+  const labelTomorrow = document.getElementById('label-tomorrow');
+  if(labelToday) labelToday.textContent = `Today, ${todayName}`;
+  if(labelTomorrow) labelTomorrow.textContent = `Tomorrow, ${tomorrowName}`;
+
   renderToday(); renderWeek(); renderShopping(); renderTasks(); renderContacts(); renderMoney();
 }
 
