@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.0 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.3 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -464,7 +464,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.0</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.3</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -507,10 +507,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <p id="greeting-sub">Here's what's on today</p>
       <p id="greeting-date" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px"></p>
     </div>
-    <div id="kit-banners"></div>
     <div class="section-label">Today</div>
     <div id="today-events"></div>
-    <div class="section-label">Coming up</div>
+    <div id="kit-banners" style="margin-top:4px"></div>
+    <div class="section-label" style="margin-top:20px">Tomorrow</div>
+    <div id="tomorrow-events"></div>
+    <div id="tomorrow-kit-banners" style="margin-top:4px"></div>
+    <div class="section-label" style="margin-top:20px">Later this week</div>
     <div id="upcoming-events"></div>
   </div>
 
@@ -617,11 +620,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       <button class="btn-add-event" onclick="openContactEditor(null,'sophia')" title="Add contact">+</button>
     </div>
     <div id="contacts-sophia"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 10px">
-      <div class="section-label" style="margin:0">Household</div>
-      <button class="btn-add-event" onclick="openContactEditor(null,'household')" title="Add contact">+</button>
-    </div>
-    <div id="contacts-household"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 10px">
       <div class="section-label" style="margin:0">Emergency</div>
       <button class="btn-add-event" onclick="openContactEditor(null,'emergency')" title="Add contact">+</button>
@@ -741,7 +739,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.0</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.3</div>
   </div>
 </div>
 
@@ -902,7 +900,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.3';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1588,28 +1586,34 @@ function renderToday(){
   // Timetable validity
   const _stt=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
   const _ttFromT=_stt.ttValidFrom||null, _ttToT=_stt.ttValidTo||null;
-  const _ttValidToday=(!_ttFromT||_todayStr>=_ttFromT)&&(!_ttToT||_todayStr<=_ttToT);
-  const tt=_ttValidToday?timetable[todayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+  const ttValid=(ds)=>(!_ttFromT||ds>=_ttFromT)&&(!_ttToT||ds<=_ttToT);
 
-  const todayEvents=getActivitiesForDate(_todayStr);
+  const tomorrowDate=new Date(now); tomorrowDate.setDate(now.getDate()+1);
+  const _tomorrowStr=dateStr(tomorrowDate);
+  const tomorrowKey=dayKeyMap[tomorrowDate.getDay()];
 
-  // Kit checklist
-  const allKit=[];
-  if(tt.kit&&tt.kit.length) allKit.push(...tt.kit);
-  todayEvents.forEach(ev=>{
-    const title=(ev.title||'').toLowerCase();
-    if(title.includes('swim')){if(!allKit.includes('🏊 Swim kit'))allKit.push('🏊 Swim kit');}
-    else if(title.includes('turnen')||title.includes('sport')){if(!allKit.includes('🎽 Sports kit'))allKit.push('🎽 Sports kit');}
-  });
-  renderKitChecklist(allKit);
+  // ── helper: collect all kit for a given date ──
+  function collectKit(ds, dayKey) {
+    const ttForDay=ttValid(ds)?timetable[dayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+    const kit=[...ttForDay.kit];
+    getActivitiesForDate(ds).forEach(ev=>{
+      if(ev.kit&&ev.kit.length) ev.kit.forEach(k=>{if(!kit.includes(k))kit.push(k);});
+      // legacy title-based inference
+      const title=(ev.title||'').toLowerCase();
+      if(title.includes('swim')&&!kit.includes('🏊 Swim kit'))kit.push('🏊 Swim kit');
+      else if((title.includes('turnen')||title.includes('sport'))&&!kit.includes('🎽 Sports kit'))kit.push('🎽 Sports kit');
+    });
+    return kit;
+  }
 
-  // Today events
-  const todayEl=document.getElementById('today-events');
-  todayEl.innerHTML='';
-  if(!todayEvents.length){
-    todayEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:12px 0">Nothing scheduled today 🌿</div>';
-  } else {
-    todayEvents.forEach(ev=>{
+  // ── helper: render event cards into a container element ──
+  function renderEventCards(events, containerEl, tt) {
+    containerEl.innerHTML='';
+    if(!events.length){
+      containerEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:8px 0">Nothing scheduled 🌿</div>';
+      return;
+    }
+    events.forEach(ev=>{
       const card=document.createElement('div');
       const _cardType=ev.type||'activity';
       card.className='event-card '+_cardType;
@@ -1617,7 +1621,7 @@ function renderToday(){
       const _startTime=ev.allDay?'All day':(ev.startTime||'');
       const _endTime=ev.allDay?'':(ev.endTime||'');
       const isMainSchool=ev.type==='school'&&(ev.title==='School'||ev.title==='School (full day)');
-      const subjectLine=isMainSchool&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${tt.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
+      const subjectLine=isMainSchool&&tt.subjects&&tt.subjects.length?`<div class="event-subjects">📚 ${tt.subjects.join(' · ')}${(tt.kit||[]).map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
       const kitLine=(ev.kit&&ev.kit.length&&!isMainSchool)?`<div>${ev.kit.map(k=>`<span class="kit-pill">${k}</span>`).join('')}</div>`:'';
       card.innerHTML=`
         <div class="event-icon-col">${_icon||'&nbsp;'}</div>
@@ -1625,22 +1629,34 @@ function renderToday(){
         <div class="event-info"><div class="event-title">${ev.title}</div>
           <div class="event-meta">${[ev.location,ev.notes].filter(Boolean).join(' · ')}</div>${subjectLine}${kitLine}
         </div>`;
-      todayEl.appendChild(card);
+      containerEl.appendChild(card);
     });
   }
 
-  // Coming up
+  // ── TODAY ──
+  const todayTT=ttValid(_todayStr)?timetable[todayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+  const todayEvents=getActivitiesForDate(_todayStr);
+  renderEventCards(todayEvents, document.getElementById('today-events'), todayTT);
+  renderKitChecklist(collectKit(_todayStr, todayKey), 'kit-banners', '🎒 Kit needed today');
+
+  // ── TOMORROW ──
+  const tomorrowTT=ttValid(_tomorrowStr)?timetable[tomorrowKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
+  const tomorrowEvents=getActivitiesForDate(_tomorrowStr);
+  renderEventCards(tomorrowEvents, document.getElementById('tomorrow-events'), tomorrowTT);
+  renderKitChecklist(collectKit(_tomorrowStr, tomorrowKey), 'tomorrow-kit-banners', '🎒 Kit needed tomorrow');
+
+  // ── LATER THIS WEEK (days 2–4 from today, summary only, no kit) ──
   const upcomingEl=document.getElementById('upcoming-events');
   upcomingEl.innerHTML='';
   let count=0;
-  for(let offset=1;offset<=14&&count<3;offset++){
+  for(let offset=2;offset<=5&&count<3;offset++){
     const d=new Date(now); d.setDate(now.getDate()+offset);
     const upDs=dateStr(d);
-    getActivitiesForDate(upDs).slice(0,1).forEach(ev=>{
-      if(count>=3)return;
+    const evs=getActivitiesForDate(upDs);
+    if(!evs.length) continue;
+    evs.slice(0,2).forEach(ev=>{
       const card=document.createElement('div');
-      const _cardType=ev.type||'activity';
-      card.className='event-card '+_cardType;
+      card.className='event-card '+(ev.type||'activity');
       const _uicon=ev.icon||autoIconFor(ev.title)||'';
       card.innerHTML=`<div class="event-icon-col">${_uicon||'&nbsp;'}</div>
         <div class="event-time"><span>${d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</span></div>
@@ -1649,7 +1665,9 @@ function renderToday(){
         </div>`;
       upcomingEl.appendChild(card);count++;
     });
+    if(count>=3) break;
   }
+  if(!count) upcomingEl.innerHTML='<div style="color:var(--text-secondary);font-size:13px;padding:8px 0">Nothing else in the next few days 🌿</div>';
 }
 
 // ═══════════════════════════════════
@@ -1867,12 +1885,6 @@ const contactsData={
     {name:'Paediatrician',role:'Dr. Müller',phone:'044 XXX XX XX',email:'',note:''},
     {name:'Dentist',role:'Dr. Meier',phone:'044 XXX XX XX',email:'',note:''},
   ],
-  household:[
-    {name:'Landlord / Verwaltung',role:'Property management',phone:'',email:'',note:''},
-    {name:'Heizung AG',role:'Boiler service',phone:'',email:'',note:'Annual contract'},
-    {name:'Electrician',role:'',phone:'',email:'',note:''},
-    {name:'Hauswartin',role:'Building manager',phone:'',email:'',note:''},
-  ],
   emergency:[
     {name:'Police',role:'',phone:'117',email:'',note:''},
     {name:'Fire',role:'',phone:'118',email:'',note:''},
@@ -1884,7 +1896,6 @@ const contactsData={
 
 function renderContacts(){
   renderContactGroup('contacts-sophia',contactsData.sophia,'var(--sophia)');
-  renderContactGroup('contacts-household',contactsData.household,'var(--jo)');
   renderContactGroup('contacts-emergency',contactsData.emergency,'var(--family)');
 }
 
@@ -2233,24 +2244,26 @@ function toggleSophiaView() {
 // ═══════════════════════════════════
 let kitChecked = {}; // resets on each page load — kit list is always fresh each day
 
-function renderKitChecklist(kitItems) {
-  const el = document.getElementById('kit-banners');
+function renderKitChecklist(kitItems, containerId, title) {
+  containerId = containerId || 'kit-banners';
+  title = title || '🎒 Kit needed today';
+  const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = '';
   if (!kitItems || !kitItems.length) return;
 
   const widget = document.createElement('div');
   widget.className = 'kit-widget';
-  widget.innerHTML = '<div class="kit-widget-title">🎒 Kit needed today</div>';
+  widget.innerHTML = `<div class="kit-widget-title">${title}</div>`;
 
   kitItems.forEach(item => {
     const row = document.createElement('div');
-    const isChecked = kitChecked[item] || false;
+    const isChecked = kitChecked[containerId+'_'+item] || false;
     row.className = 'kit-check-item' + (isChecked ? ' checked' : '');
     row.innerHTML = `<div class="kit-check-box">${isChecked ? '✓' : ''}</div><div class="kit-check-label">${item}</div>`;
     row.onclick = () => {
-      kitChecked[item] = !kitChecked[item];
-      renderKitChecklist(kitItems);
+      kitChecked[containerId+'_'+item] = !kitChecked[containerId+'_'+item];
+      renderKitChecklist(kitItems, containerId, title);
     };
     widget.appendChild(row);
   });
@@ -2339,7 +2352,6 @@ function renderKitChecklist(kitItems) {
         <div class="field-label">Group</div>
         <div class="event-type-row" id="contact-group-row">
           <span class="type-chip active" data-g="sophia" onclick="selectContactGroup(this)">🎒 Sophia</span>
-          <span class="type-chip" data-g="household" onclick="selectContactGroup(this)">🏠 Household</span>
           <span class="type-chip" data-g="emergency" onclick="selectContactGroup(this)">🚨 Emergency</span>
         </div>
       </div>
