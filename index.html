@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.8 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.9 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --sophia:#009B8D;--sophia-light:#E6F5F4;
@@ -472,7 +473,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.8</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.9</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -675,6 +676,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
           </div>
           <div class="settings-row-arrow">›</div>
         </div>
+        <div class="settings-row" id="schedule-pdf-view-row" style="display:none" onclick="if(scheduleFile.url)window.open(scheduleFile.url,'_blank')">
+          <div class="settings-row-icon">👁️</div>
+          <div class="settings-row-info">
+            <div class="settings-row-title">View schedule PDF</div>
+            <div class="settings-row-sub" id="schedule-pdf-view-sub"></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
       </div>
       <input type="file" id="tt-upload-input" accept="image/*" style="display:none" onchange="handleTimetableUpload(event)">
       <input type="file" id="tt-pdf-input" accept="application/pdf" style="display:none" onchange="handlePDFUpload(event)">
@@ -749,7 +758,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.8</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.9</div>
   </div>
 </div>
 
@@ -885,7 +894,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(e => console.warn('Offline persistence not enabled:', e.code));
+let scheduleFile = {url:null, name:null, uploadedAt:null};
 
 const ANTHROPIC_KEY = ''; // key loaded from localStorage at runtime — see getAnthropicKey()
 const CLAUDE_MODEL = 'claude-sonnet-4-5';
@@ -910,7 +921,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.8';
+const APP_VERSION = '2.0.9';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1118,6 +1129,7 @@ function attachFirestoreListeners() {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sv));
         }
       }},
+    {name:'schedules', apply: d => { scheduleFile = {url:d.url||null, name:d.name||null, uploadedAt:d.uploadedAt||null}; renderScheduleFile(); }},
   ];
   domains.forEach(dom => {
     const unsub = householdDoc(dom.name).onSnapshot(
@@ -2008,10 +2020,50 @@ function handleTimetableUpload(e){
   reader.readAsDataURL(file);
 }
 
-function handlePDFUpload(e){alert('PDF upload coming soon — please enter the schedule manually for now.');}
+function handlePDFUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  if(file.type!=='application/pdf'){alert('Please choose a PDF file.');e.target.value='';return;}
+  if(file.size>10*1024*1024){alert('PDF is too large (max 10MB).');e.target.value='';return;}
+  const proc=document.getElementById('settings-processing');
+  const procText=proc?proc.querySelector('p'):null;
+  if(procText)procText.textContent='Uploading PDF…';
+  if(proc)proc.style.display='block';
+  const ref=storage.ref('schedules/activity-schedule.pdf');
+  ref.put(file).then(()=>ref.getDownloadURL()).then(url=>{
+    const meta={url, name:file.name, uploadedAt:Date.now()};
+    return householdDoc('schedules').set(meta).then(()=>{ scheduleFile=meta; });
+  }).then(()=>{
+    if(proc)proc.style.display='none';
+    if(procText)procText.textContent='Reading with AI…';
+    renderScheduleFile();
+    e.target.value='';
+  }).catch(err=>{
+    console.error('PDF upload:', err);
+    if(proc)proc.style.display='none';
+    if(procText)procText.textContent='Reading with AI…';
+    alert('Could not upload the PDF — please check your connection and try again.');
+    e.target.value='';
+  });
+}
+
+function renderScheduleFile(){
+  const row=document.getElementById('schedule-pdf-view-row');
+  if(!row)return;
+  if(scheduleFile && scheduleFile.url){
+    row.style.display='flex';
+    const sub=document.getElementById('schedule-pdf-view-sub');
+    if(sub){
+      const d=scheduleFile.uploadedAt?new Date(scheduleFile.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'';
+      sub.textContent=(scheduleFile.name||'schedule.pdf')+(d?(' · uploaded '+d):'');
+    }
+  } else {
+    row.style.display='none';
+  }
+}
 
 async function readTimetableWithClaude(base64){
-  if(!ANTHROPIC_KEY)return{
+  const key=getAnthropicKey();
+  if(!key)return{
     mon:{subjects:['Deutsch','Mathe','Turnen'],kit:['🎽 Sports kit']},
     tue:{subjects:['Sachkunde','Deutsch','Kunst'],kit:['🎨 Art apron']},
     wed:{subjects:['Mathe','Musik','Deutsch'],kit:[]},
@@ -2020,14 +2072,17 @@ async function readTimetableWithClaude(base64){
   };
   const res=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01'},
+    headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({model:CLAUDE_MODEL,max_tokens:1024,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
       {type:'text',text:'Extract school timetable subjects per weekday. Return ONLY JSON: {"mon":{"subjects":[],"kit":[]},"tue":{"subjects":[],"kit":[]},"wed":{"subjects":[],"kit":[]},"thu":{"subjects":[],"kit":[]},"fri":{"subjects":[],"kit":[]}} Add "🎽 Sports kit" if Turnen/Sport. Add "🎨 Art apron" if Kunst/Werken.'}
     ]}]})
   });
   const data=await res.json();
-  return JSON.parse(data.content[0].text.trim());
+  if(!res.ok) throw new Error((data&&data.error&&data.error.message)||'Anthropic API error');
+  const raw=data.content[0].text.trim();
+  const cleaned=raw.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();
+  return JSON.parse(cleaned);
 }
 
 // ═══════════════════════════════════
