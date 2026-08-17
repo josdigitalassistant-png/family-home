@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.9 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.10 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -473,7 +473,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.9</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.10</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -758,7 +758,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.9</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.10</div>
   </div>
 </div>
 
@@ -921,7 +921,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.9';
+const APP_VERSION = '2.0.10';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -2013,7 +2013,8 @@ function handleTimetableUpload(e){
       showTimetableEditor();renderToday();renderWeek();
     }catch(err){
       document.getElementById('settings-processing').style.display='none';
-      alert('Could not read timetable automatically — please edit manually.');
+      console.error('Timetable AI read failed:', err);
+      alert('Could not read timetable automatically — please edit manually.\n\nDetails: '+(err&&err.message?err.message:err));
       showTimetableEditor();
     }
   };
