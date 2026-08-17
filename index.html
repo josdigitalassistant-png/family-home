@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.10 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.12 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -217,6 +217,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
 .tt-validity-row{display:flex;gap:8px;margin-bottom:14px}
 .tt-validity-row input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;color:var(--text);background:var(--white);outline:none}
 .tt-validity-label{font-size:11px;color:var(--text-secondary);margin-bottom:4px}
+.tt-holidays-wrap{margin-bottom:14px}
+.tt-holiday-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.tt-holiday-row input[type=text]{flex:1.2;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;color:var(--text);background:var(--white);outline:none}
+.tt-holiday-row input[type=date]{flex:1;min-width:0;border:1.5px solid var(--border);border-radius:8px;padding:8px 6px;font-size:11px;font-family:inherit;color:var(--text);background:var(--white);outline:none}
+.tt-holiday-remove{flex-shrink:0;border:none;background:none;color:var(--text-secondary);font-size:15px;cursor:pointer;padding:4px 6px}
+.tt-add-holiday-btn{font-size:12px;font-weight:600;color:var(--sophia);background:none;border:none;cursor:pointer;padding:4px 0;font-family:inherit}
 .tt-save-btn{width:100%;padding:13px;background:var(--sophia);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
 
 /* EVENT EDITOR */
@@ -473,7 +479,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.10</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.12</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -758,7 +764,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.10</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.12</div>
   </div>
 </div>
 
@@ -921,7 +927,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.10';
+const APP_VERSION = '2.0.12';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1008,6 +1014,32 @@ const timetable = (function(){
 })();
 
 const dayKeyMap = {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri',6:'sat',0:'sun'};
+
+// Used by the manual timetable editor (showTimetableEditor/saveTimetable) to list
+// school days in order, and by the kit-chip picker for standard kit presets.
+const WEEK_DAYS = [
+  {key:'mon',label:'Monday'},
+  {key:'tue',label:'Tuesday'},
+  {key:'wed',label:'Wednesday'},
+  {key:'thu',label:'Thursday'},
+  {key:'fri',label:'Friday'}
+];
+const KIT_OPTIONS = ['🎽 Sports kit','🏊 Swim kit','🎸 Instrument','🎨 Art apron'];
+
+// Central school-day check: false if outside the term's valid period, OR if the
+// date falls inside any named holiday range (Herbstferien etc). Reads settings
+// fresh each call since localStorage is the source of truth for these fields.
+function ttValidForDate(ds){
+  const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const from=s.ttValidFrom||null, to=s.ttValidTo||null;
+  if(from && ds<from) return false;
+  if(to && ds>to) return false;
+  const holidays=s.ttHolidays||[];
+  for(const h of holidays){
+    if(h.from && h.to && ds>=h.from && ds<=h.to) return false;
+  }
+  return true;
+}
 
 // ═══════════════════════════════════
 // AUTH
@@ -1122,12 +1154,13 @@ function attachFirestoreListeners() {
     {name:'contacts',   apply: d => { for (const k in contactsData) delete contactsData[k]; for (const k in (d||{})) contactsData[k]=d[k]; renderContacts(); }},
     {name:'timetable',  apply: d => {
         for (const k in timetable) delete timetable[k];
-        for (const k in (d||{})) if (k!=='ttValidFrom' && k!=='ttValidTo') timetable[k]=d[k];
+        for (const k in (d||{})) if (k!=='ttValidFrom' && k!=='ttValidTo' && k!=='ttHolidays') timetable[k]=d[k];
         if (d && d.ttValidFrom !== undefined) {
           const sv = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-          sv.ttValidFrom=d.ttValidFrom; sv.ttValidTo=d.ttValidTo;
+          sv.ttValidFrom=d.ttValidFrom; sv.ttValidTo=d.ttValidTo; sv.ttHolidays=d.ttHolidays||[];
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sv));
         }
+        renderToday(); renderWeek();
       }},
     {name:'schedules', apply: d => { scheduleFile = {url:d.url||null, name:d.name||null, uploadedAt:d.uploadedAt||null}; renderScheduleFile(); }},
   ];
@@ -1178,7 +1211,7 @@ async function saveAppData() {
     batch.set(householdDoc('tasks'),      {list: tasks});
     batch.set(householdDoc('payments'),   {list: payments});
     batch.set(householdDoc('contacts'),   contactsData);
-    batch.set(householdDoc('timetable'),  Object.assign({}, timetable, {ttValidFrom:_sv.ttValidFrom||null, ttValidTo:_sv.ttValidTo||null}));
+    batch.set(householdDoc('timetable'),  Object.assign({}, timetable, {ttValidFrom:_sv.ttValidFrom||null, ttValidTo:_sv.ttValidTo||null, ttHolidays:_sv.ttHolidays||[]}));
     await batch.commit();
     setSyncLive();
   } catch(e) { setSyncError(); console.error('saveAppData:', e); }
@@ -1557,10 +1590,8 @@ function renderWeek(){
   const _sd2=new Date(ws); _sd2.setDate(ws.getDate()+_dayOffset2); _sd2.setHours(12,0,0,0);
   const _sdStr=dateStr(_sd2);
 
-  // Timetable validity
-  const _s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _ttFrom=_s.ttValidFrom||null, _ttTo=_s.ttValidTo||null;
-  const _ttValid=(!_ttFrom||_sdStr>=_ttFrom)&&(!_ttTo||_sdStr<=_ttTo);
+  // Timetable validity (term dates + holiday exclusions)
+  const _ttValid=ttValidForDate(_sdStr);
   const tt=_ttValid?timetable[dayKeyMap[selectedDay===7?0:selectedDay]]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
 
   const eventsEl=document.getElementById('day-events');
@@ -1577,6 +1608,13 @@ function renderWeek(){
   eventsEl.appendChild(hdr);
 
   const sortedEvents = getActivitiesForDate(_sdStr);
+  // If the timetable has subjects for this weekday and no calendar event already
+  // represents school for this date, show a school entry sourced from the timetable
+  // — keeps Week view consistent with the Today page's kit reminders, without
+  // requiring a manually created recurring "School" event.
+  if(tt.subjects && tt.subjects.length && !sortedEvents.some(ev=>ev.type==='school')){
+    sortedEvents.unshift({id:'_school_'+_sdStr, type:'school', title:'School', kit:[]});
+  }
 
   if(!sortedEvents.length){
     const empty=document.createElement('div');
@@ -1609,7 +1647,12 @@ function renderWeek(){
           ${ev.pick?`<span class="owner-chip ${ev.pick==='Jo'?'jo':ev.pick==='Partner'?'partner':''}">Pick-up: ${ev.pick}</span>`:''}
         </div>`:''}`;
     }
-    div.onclick=(()=>{const _aid=ev.id,_ds=_sdStr;return()=>openEventEditor(_ds,_aid);})();
+    const _isSyntheticSchool = typeof ev.id==='string' && ev.id.indexOf('_school_')===0;
+    if(_isSyntheticSchool){
+      div.onclick=()=>showTimetableEditor();
+    } else {
+      div.onclick=(()=>{const _aid=ev.id,_ds=_sdStr;return()=>openEventEditor(_ds,_aid);})();
+    }
     eventsEl.appendChild(div);
   });
 }
@@ -1622,10 +1665,8 @@ function renderToday(){
   const _todayStr=dateStr(now);
   const todayKey=dayKeyMap[jsDay];
 
-  // Timetable validity
-  const _stt=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  const _ttFromT=_stt.ttValidFrom||null, _ttToT=_stt.ttValidTo||null;
-  const ttValid=(ds)=>(!_ttFromT||ds>=_ttFromT)&&(!_ttToT||ds<=_ttToT);
+  // Timetable validity (term dates + holiday exclusions)
+  const ttValid=ttValidForDate;
 
   const tomorrowDate=new Date(now); tomorrowDate.setDate(now.getDate()+1);
   const _tomorrowStr=dateStr(tomorrowDate);
@@ -1675,12 +1716,18 @@ function renderToday(){
   // ── TODAY ──
   const todayTT=ttValid(_todayStr)?timetable[todayKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
   const todayEvents=getActivitiesForDate(_todayStr);
+  if(todayTT.subjects && todayTT.subjects.length && !todayEvents.some(ev=>ev.type==='school')){
+    todayEvents.unshift({id:'_school_'+_todayStr, type:'school', title:'School', kit:[]});
+  }
   renderEventCards(todayEvents, document.getElementById('today-events'), todayTT);
   renderKitChecklist(collectKit(_todayStr, todayKey), 'kit-banners', 'Don\u2019t forget to pack');
 
   // ── TOMORROW ──
   const tomorrowTT=ttValid(_tomorrowStr)?timetable[tomorrowKey]||{subjects:[],kit:[]}:{subjects:[],kit:[]};
   const tomorrowEvents=getActivitiesForDate(_tomorrowStr);
+  if(tomorrowTT.subjects && tomorrowTT.subjects.length && !tomorrowEvents.some(ev=>ev.type==='school')){
+    tomorrowEvents.unshift({id:'_school_'+_tomorrowStr, type:'school', title:'School', kit:[]});
+  }
   renderEventCards(tomorrowEvents, document.getElementById('tomorrow-events'), tomorrowTT);
   renderKitChecklist(collectKit(_tomorrowStr, tomorrowKey), 'tomorrow-kit-banners', 'Don\u2019t forget to pack tomorrow');
 }
@@ -1956,15 +2003,35 @@ function updateTTStatus(){
   if(el)el.textContent=hasData?'Last updated · tap to edit':'Tap to add subjects per day';
 }
 
+function holidayRowHtml(h){
+  const name=(h&&h.name)||'', from=(h&&h.from)||'', to=(h&&h.to)||'';
+  return `<div class="tt-holiday-row">
+    <input type="text" class="tt-holiday-name" placeholder="e.g. Herbstferien" value="${name}">
+    <input type="date" class="tt-holiday-from" value="${from}">
+    <input type="date" class="tt-holiday-to" value="${to}">
+    <button type="button" class="tt-holiday-remove" onclick="this.closest('.tt-holiday-row').remove()">✕</button>
+  </div>`;
+}
+
+function addHolidayRow(){
+  const list=document.getElementById('tt-holidays-list');
+  if(!list)return;
+  list.insertAdjacentHTML('beforeend', holidayRowHtml(null));
+}
+
 function showTimetableEditor(){
   const wrap=document.getElementById('tt-editor-wrap');
   const editor=document.getElementById('tt-editor');
   wrap.style.display='block';
   editor.innerHTML='';
   const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  const holidays=s.ttHolidays||[];
   let html=`<div style="margin-bottom:14px"><div class="tt-validity-label">Valid period (optional)</div>
     <div class="tt-validity-row"><input type="date" id="tt-valid-from" value="${s.ttValidFrom||''}" placeholder="From">
-    <input type="date" id="tt-valid-to" value="${s.ttValidTo||''}" placeholder="Until"></div></div>`;
+    <input type="date" id="tt-valid-to" value="${s.ttValidTo||''}" placeholder="Until"></div></div>
+    <div class="tt-holidays-wrap"><div class="tt-validity-label">School holidays (timetable pauses automatically)</div>
+    <div id="tt-holidays-list">${holidays.map(h=>holidayRowHtml(h)).join('')}</div>
+    <button type="button" class="tt-add-holiday-btn" onclick="addHolidayRow()">+ Add holiday</button></div>`;
   WEEK_DAYS.forEach(({key,label})=>{
     const d=timetable[key]||{subjects:[],kit:[]};
     html+=`<div class="tt-day-card"><div class="tt-day-name">${label}</div>
@@ -1988,8 +2055,13 @@ function saveTimetable(){
   });
   const validFrom=document.getElementById('tt-valid-from')?.value||'';
   const validTo=document.getElementById('tt-valid-to')?.value||'';
+  const holidays=Array.from(document.querySelectorAll('#tt-holidays-list .tt-holiday-row')).map(row=>({
+    name: row.querySelector('.tt-holiday-name')?.value.trim()||'',
+    from: row.querySelector('.tt-holiday-from')?.value||'',
+    to: row.querySelector('.tt-holiday-to')?.value||''
+  })).filter(h=>h.from && h.to);
   const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-  s.timetable=timetable;s.ttValidFrom=validFrom;s.ttValidTo=validTo;
+  s.timetable=timetable;s.ttValidFrom=validFrom;s.ttValidTo=validTo;s.ttHolidays=holidays;
   localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
   saveAppData();
   document.getElementById('tt-editor-wrap').style.display='none';
