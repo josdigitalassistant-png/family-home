@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Family Home App v2.0.12 — Firebase/Firestore edition -->
+<!-- Family Home App v2.0.13 — Firebase/Firestore edition -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -479,7 +479,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
       onkeydown="if(event.key==='Enter')startSignIn()">
     <button class="ob-btn" id="signin-btn" onclick="startSignIn()" style="max-width:280px">Sign in</button>
     <div id="login-error" style="display:none;font-size:12px;color:#ff8a8a;margin-top:4px;max-width:280px"></div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.12</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px">v2.0.13</div>
     <div class="ob-dots"><div class="ob-dot active"></div><div class="ob-dot"></div></div>
   </div>
   <div class="ob-step" id="ob-step-2">
@@ -764,7 +764,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
         </div>
       </div>
     </div>
-    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.12</div>
+    <div style="text-align:center;padding:20px;font-size:11px;color:var(--text-secondary)">Family Home App · v2.0.13</div>
   </div>
 </div>
 
@@ -835,6 +835,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);max-w
               <div><div class="field-label" style="margin-bottom:4px">Start date</div><input class="field-input" id="ev-recur-start" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
               <div><div class="field-label" style="margin-bottom:4px">End date</div><input class="field-input" id="ev-recur-end" type="date" style="width:100%;min-width:0;box-sizing:border-box"></div>
             </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-secondary);margin-top:10px">
+              <input type="checkbox" id="ev-term-time-only" style="cursor:pointer;width:16px;height:16px">
+              Term time only — skip school holiday dates
+            </label>
           </div>
         </div>
       </div>
@@ -927,7 +931,7 @@ function saveAnthropicKey(key) {
   s.anthropicKey = key.trim();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-const APP_VERSION = '2.0.12';
+const APP_VERSION = '2.0.13';
 
 const STORAGE_KEY = 'familyapp_v1';
 const now = new Date();
@@ -1045,6 +1049,11 @@ function ttValidForDate(ds){
 // AUTH
 // ═══════════════════════════════════
 let currentUser = null;
+// Restricted account: sees only Today + Week, can't edit the schedule or reach
+// Settings, but can still tick off kit items (that's just local UI state).
+const CHILD_EMAIL = 'kaskesophia@gmail.com';
+function isChildUser(){ return !!(currentUser && currentUser.email && currentUser.email.toLowerCase()===CHILD_EMAIL); }
+function canEditSchedule(){ return !isChildUser(); }
 
 function startSignIn() {
   const email = document.getElementById('login-email').value.trim();
@@ -1099,6 +1108,7 @@ auth.onAuthStateChanged(function(user) {
 // ═══════════════════════════════════
 function showApp() {
   document.getElementById('app').classList.add('ready');
+  applyChildRestrictions();
   initApp();
   attachFirestoreListeners();
 }
@@ -1227,11 +1237,18 @@ const NAV_TABS = [
 ];
 let currentTab = 'today';
 
+function applyChildRestrictions(){
+  const gear=document.querySelector('.topbar-gear');
+  if(gear) gear.style.display=isChildUser()?'none':'';
+  if(isChildUser() && currentTab!=='today' && currentTab!=='week') switchTab('today');
+}
+
 function buildMenu() {
   const inner = document.getElementById('nav-dropdown-inner');
   if (!inner) return;
   inner.innerHTML = '';
-  NAV_TABS.forEach(t => {
+  const tabs = isChildUser() ? NAV_TABS.filter(t=>t.id==='today'||t.id==='week') : NAV_TABS;
+  tabs.forEach(t => {
     const div = document.createElement('div');
     div.className = 'nav-menu-item'+(t.id===currentTab?' active':'');
     div.id = 'nav-item-'+t.id;
@@ -1239,6 +1256,14 @@ function buildMenu() {
     div.onclick = () => { closeMenu(); setTimeout(()=>switchTab(t.id),50); };
     inner.appendChild(div);
   });
+  const divider=document.createElement('div');
+  divider.style.cssText='height:1px;background:rgba(255,255,255,0.1);margin:6px 0';
+  inner.appendChild(divider);
+  const signOutDiv=document.createElement('div');
+  signOutDiv.className='nav-menu-item';
+  signOutDiv.innerHTML=`<span class="nav-menu-icon">🚪</span><span class="nav-menu-label">Sign out</span>`;
+  signOutDiv.onclick=()=>{ closeMenu(); if(confirm('Sign out?')) signOut(); };
+  inner.appendChild(signOutDiv);
 }
 
 function toggleMenu() {
@@ -1305,6 +1330,7 @@ function getActivitiesForDate(ds) {
       if (!r || !r.startDate) return;
       if (ds < r.startDate) return;
       if (r.endDate && ds > r.endDate) return;
+      if (act.termTimeOnly && !ttValidForDate(ds)) return;
       const freq = r.frequency || 'weekly';
       if (freq === 'daily') { results.push(act); }
       else if (freq === 'weekly') {
@@ -1366,6 +1392,7 @@ function openEventEditor(dateContext, actId) {
   ['ev-title','ev-location','ev-notes','ev-drop','ev-pick'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('ev-start').value=''; document.getElementById('ev-end').value='';
   const _ad = document.getElementById('ev-allday'); if(_ad){_ad.checked=false;} document.getElementById('ev-time-row').style.display='grid';
+  const _tto0=document.getElementById('ev-term-time-only'); if(_tto0) _tto0.checked=false;
   // Reset kit chips to default unchecked state
   document.querySelectorAll('#ev-kit-row .tt-kit-chip:not(.add-kit-btn)').forEach(c=>{
     if(!['🎽 Sports kit','🏊 Swim kit','🎸 Instrument'].includes(c.textContent.trim())){c.remove();}else{c.classList.remove('active');}
@@ -1428,6 +1455,7 @@ function openEventEditor(dateContext, actId) {
       (r.daysOfWeek||[]).forEach(d=>{const chip=document.querySelector(`#ev-days-of-week-row [data-dow="${d}"]`);if(chip)chip.classList.add('active');});
       document.getElementById('ev-recur-start').value=r.startDate||'';
       document.getElementById('ev-recur-end').value=r.endDate||'';
+      const _tto=document.getElementById('ev-term-time-only'); if(_tto) _tto.checked=!!act.termTimeOnly;
       document.getElementById('series-opts').classList.add('open');
     }
   }
@@ -1478,6 +1506,7 @@ function saveEvent() {
     let daysOfWeek=freq==='weekly'?getSelectedDow():[];
     if(freq==='weekly'&&!daysOfWeek.length&&startDate) daysOfWeek.push(dowOf(startDate));
     act.recurrence={frequency:freq,startDate,endDate:endDate||null,daysOfWeek};
+    act.termTimeOnly=document.getElementById('ev-term-time-only')?.checked||false;
   }
 
   // Save timetable for school recurring
@@ -1597,14 +1626,16 @@ function renderWeek(){
   const eventsEl=document.getElementById('day-events');
   eventsEl.innerHTML='';
 
-  // Day header with + button
+  // Day header with + button (edit rights only — child account is view-only here)
   const hdr=document.createElement('div');
   hdr.className='day-header-row';
   hdr.innerHTML=`<div class="day-header-label">${dayNames[selectedDay]}</div>`;
-  const addBtn=document.createElement('button');
-  addBtn.className='btn-add-event'; addBtn.title='Add activity'; addBtn.textContent='+';
-  addBtn.onclick=function(){ openEventEditor(_sdStr, null); };
-  hdr.appendChild(addBtn);
+  if(canEditSchedule()){
+    const addBtn=document.createElement('button');
+    addBtn.className='btn-add-event'; addBtn.title='Add activity'; addBtn.textContent='+';
+    addBtn.onclick=function(){ openEventEditor(_sdStr, null); };
+    hdr.appendChild(addBtn);
+  }
   eventsEl.appendChild(hdr);
 
   const sortedEvents = getActivitiesForDate(_sdStr);
@@ -1619,7 +1650,7 @@ function renderWeek(){
   if(!sortedEvents.length){
     const empty=document.createElement('div');
     empty.className='empty-day';
-    empty.textContent='🌿 Nothing scheduled — tap + to add';
+    empty.textContent=canEditSchedule()?'🌿 Nothing scheduled — tap + to add':'🌿 Nothing scheduled';
     eventsEl.appendChild(empty);
   }
 
@@ -1648,7 +1679,9 @@ function renderWeek(){
         </div>`:''}`;
     }
     const _isSyntheticSchool = typeof ev.id==='string' && ev.id.indexOf('_school_')===0;
-    if(_isSyntheticSchool){
+    if(!canEditSchedule()){
+      // View-only account: no tap-to-edit, no shortcut into Settings via the school card.
+    } else if(_isSyntheticSchool){
       div.onclick=()=>showTimetableEditor();
     } else {
       div.onclick=(()=>{const _aid=ev.id,_ds=_sdStr;return()=>openEventEditor(_ds,_aid);})();
