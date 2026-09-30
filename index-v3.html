@@ -191,6 +191,7 @@ textarea.inp{height:auto;padding:12px 16px;line-height:1.5;resize:vertical}
       <input id="login-password" class="inp" type="password" placeholder="Password" autocomplete="current-password">
       <div id="login-error" class="err" style="display:none"></div>
       <button id="signin-btn" class="btn-main" style="margin-top:4px">Sign in</button>
+      <button id="forgot-btn" class="link" style="align-self:flex-start;margin-top:4px">Forgot password?</button>
     </div>
     <div id="login-wait" style="display:none;align-items:center;gap:12px;height:54px;font-weight:800"><span class="spin"></span>Signing in…</div>
     <div style="font-size:11px;color:var(--subtle);margin-top:4px" id="login-version"></div>
@@ -1134,6 +1135,13 @@ function loadDemo() {
 document.getElementById('login-version').textContent = 'v' + APP_VERSION;
 document.getElementById('login-shapes').innerHTML = shape('circle', C.pink, 190, 'left:-40px;top:8%', 'happy', 0, 0) + shape('tri', C.green, 150, 'right:-10px;top:14%', 'wow', 14, .8) + shape('hex', C.blue, 120, 'left:34%;top:30%', 'sleep', -8, 1.6);
 document.getElementById('signin-btn').addEventListener('click', startSignIn);
+document.getElementById('forgot-btn').addEventListener('click', () => {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { showLoginError('Type your email above first, then tap Forgot password.'); return; }
+  if (DEMO) { showLoginError('Demo mode — no emails sent.'); return; }
+  auth.sendPasswordResetEmail(email).then(() => showLoginError('Check your inbox (and spam) for a reset link from Firebase.'))
+    .catch(e => showLoginError(e.code === 'auth/invalid-email' ? 'That email doesn’t look right.' : 'Could not send reset email: ' + e.message));
+});
 if (DEMO) { loadDemo(); sync = { state: 'live', at: new Date() }; showApp(); }
 else auth.onAuthStateChanged(user => {
   if (user) { currentUser = user; lsSet({ setupDone: true, version: APP_VERSION }); showApp(); attachListeners(); }
